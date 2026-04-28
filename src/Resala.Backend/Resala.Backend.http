@@ -1,0 +1,6 @@
+@Resala.Backend_HostAddress = http://localhost:5081
+
+GET {{Resala.Backend_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

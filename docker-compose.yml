@@ -1,0 +1,41 @@
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: resala-db
+    environment:
+      POSTGRES_DB: resala_chat
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: admin
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: src/Resala.Backend/Dockerfile
+    container_name: resala-backend
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=db;Database=resala_chat;Username=postgres;Password=admin
+      - AuthMode=Standalone
+      - Storage__Path=/app/storage
+    ports:
+      - "5001:8080"
+    depends_on:
+      - db
+    volumes:
+      - ./storage:/app/storage
+
+  frontend:
+    build:
+      context: .
+      dockerfile: src/resala.client/Dockerfile
+    container_name: resala-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

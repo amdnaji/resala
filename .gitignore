@@ -1,0 +1,42 @@
+# .NET
+[Bb]in/
+[Oo]bj/
+*.user
+*.userosscache
+*.sln.doccache
+*.suo
+*.userprefs
+*.vshost.exe
+*.vshost.exe.config
+*.vshost.exe.manifest
+*.xml
+*.log
+*.swp
+*.bak
+*.cache
+*.tmp
+*.temp
+.vs/
+.vscode/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp*
+.pnp.js
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+dist/
+build/
+.DS_Store
+
+# Resala Storage (local files)
+storage/
+resala_storage/
+docs/assets/*.webp # Optional: if you want to exclude media, but here we want the demo.
+!docs/assets/demo.webp # Keep the demo
