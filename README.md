@@ -16,7 +16,7 @@
 ## 🎬 عرض حي للمشروع (Live Demo)
 
 <p align="center">
-  <img src="docs/assets/demo.webp" alt="Resala Live Demo" width="800">
+  <img src="docs/assets/showcase.png" alt="Resala Showcase" width="800">
 </p>
 
 ---
