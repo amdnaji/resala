@@ -13,11 +13,24 @@
 
 ---
 
-## 🎬 عرض حي للمشروع (Live Demo)
+## 📸 لقطات من داخل المشروع (Project Screenshots)
+
+بما أننا نهتم بـ **الأصالة**، إليكم لقطات حقيقية من داخل بيئة العمل الخاصة بتطبيق "رسالة" توضح الميزات والواجهة الأصلية:
 
 <p align="center">
-  <img src="docs/assets/showcase.png" alt="Resala Showcase" width="800">
+  <img src="docs/screenshots/chat_view.png" alt="Chat View" width="800">
+  <br>
+  <em>واجهة المحادثة الفورية وتجربة المستخدم السلسة</em>
 </p>
+
+<p align="center">
+  <img src="docs/screenshots/reaction.png" alt="Message Reactions" width="400" style="display:inline-block">
+  <img src="docs/screenshots/group_features.png" alt="Group Features" width="400" style="display:inline-block">
+  <br>
+  <em>دعم التفاعلات (Emojis) وميزات المجموعات المتقدمة</em>
+</p>
+
+---
 
 ---
 
