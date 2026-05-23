@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, MoreVertical, Phone, Video, CheckCheck, ArrowLeft, Smile, Reply, X, Plus, Paperclip, Loader2, Trash2 } from 'lucide-react';
+import { Send, MoreVertical, Phone, PhoneOff, Video, CheckCheck, ArrowLeft, Smile, Reply, X, Plus, Paperclip, Loader2, Trash2 } from 'lucide-react';
 import EmojiPicker, { Theme, type EmojiClickData } from 'emoji-picker-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSignalR } from '../contexts/SignalRContext';
+import { useAudioCall } from '../contexts/AudioCallContext';
 import api from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { ChatInfoSidebar } from './ChatInfoSidebar';
@@ -15,6 +16,7 @@ interface ChatAreaProps {
 export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
   const { user } = useAuth();
   const { connection, isConnected } = useSignalR();
+  const { startCall } = useAudioCall();
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -351,6 +353,45 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
     }
   };
 
+  const renderCallingSystemMessage = (msg: any) => {
+    const isRtl = i18n.language === 'ar' || document.documentElement.dir === 'rtl';
+    const timeString = new Date(msg.createdAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
+    
+    if (msg.content === '[System:MissedCall]') {
+      return (
+        <div className="flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 bg-rose-50 border border-rose-100/60 rounded-full text-xs font-semibold text-rose-700 shadow-sm transition-all duration-300">
+          <PhoneOff size={14} className="text-rose-500 animate-pulse shrink-0" />
+          <span>{isRtl ? 'مكالمة صوتية فائتة' : 'Missed Audio Call'}</span>
+          <span className="text-[10px] text-rose-400 font-normal">{timeString}</span>
+        </div>
+      );
+    }
+    
+    if (msg.content.startsWith('[System:CompletedCall:')) {
+      const parts = msg.content.split(':');
+      const durationSeconds = parseInt(parts[2], 10) || 0;
+      
+      const formatDuration = (secs: number) => {
+        const mins = Math.floor(secs / 60);
+        const remainingSecs = secs % 60;
+        return `${mins.toString().padStart(2, '0')}:${remainingSecs.toString().padStart(2, '0')}`;
+      };
+
+      return (
+        <div className="flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 bg-emerald-50 border border-emerald-100/60 rounded-full text-xs font-semibold text-emerald-700 shadow-sm transition-all duration-300">
+          <Phone size={14} className="text-emerald-600 shrink-0" />
+          <span>
+            {isRtl 
+              ? `مكالمة صوتية مكتملة (${formatDuration(durationSeconds)})` 
+              : `Completed Audio Call (${formatDuration(durationSeconds)})`}
+          </span>
+          <span className="text-[10px] text-emerald-400 font-normal">{timeString}</span>
+        </div>
+      );
+    }
+    return null;
+  };
+
   return (
     <>
       {/* Hidden File Input */}
@@ -564,7 +605,15 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
             
             {/* Header Actions */}
             <div className="flex items-center space-x-3 text-gray-400 shrink-0">
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors"><Phone size={20} /></button>
+              {chat.type === 0 && otherParticipant && (
+                <button 
+                  onClick={() => startCall(chat.id, otherParticipant.userId, chatName)}
+                  className="p-2 hover:bg-emerald-50 rounded-full transition-all duration-200 text-emerald-600 hover:text-emerald-700 active:scale-95 flex items-center justify-center"
+                  title={t('chat.audio_call', 'Audio Call')}
+                >
+                  <Phone size={20} />
+                </button>
+              )}
               <button className="p-2 hover:bg-gray-100 rounded-full transition-colors"><Video size={20} /></button>
               <button 
                 onClick={() => setShowChatInfo(!showChatInfo)}
@@ -595,7 +644,11 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                         </div>
                       )}
                       
-                      {msg.senderId === 'SYSTEM' ? (
+                      {msg.content && (msg.content === '[System:MissedCall]' || msg.content.startsWith('[System:CompletedCall:')) ? (
+                        <div className="flex justify-center my-4 font-sans select-none animate-fadeIn">
+                          {renderCallingSystemMessage(msg)}
+                        </div>
+                      ) : msg.senderId === 'SYSTEM' ? (
                         <div className="flex justify-center my-4">
                           <div className="px-4 py-1.5 bg-blue-50 text-blue-800 rounded-lg text-xs font-medium text-center shadow-sm w-fit max-w-[80%]">
                             {msg.content}
