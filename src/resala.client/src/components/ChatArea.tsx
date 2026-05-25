@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, MoreVertical, Phone, PhoneOff, Video, CheckCheck, ArrowLeft, Smile, Reply, X, Plus, Paperclip, Loader2, Trash2 } from 'lucide-react';
+import { Send, MoreVertical, Phone, PhoneOff, Video, VideoOff, CheckCheck, ArrowLeft, Smile, Reply, X, Plus, Paperclip, Loader2, Trash2 } from 'lucide-react';
 import EmojiPicker, { Theme, type EmojiClickData } from 'emoji-picker-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSignalR } from '../contexts/SignalRContext';
-import { useAudioCall } from '../contexts/AudioCallContext';
+import { useCall } from '../contexts/CallContext';
+import { formatCallSystemMessage } from '../utils/callHelper';
 import api from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { ChatInfoSidebar } from './ChatInfoSidebar';
+import toast from 'react-hot-toast';
 
 interface ChatAreaProps {
   chat: any;
@@ -16,7 +18,7 @@ interface ChatAreaProps {
 export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
   const { user } = useAuth();
   const { connection, isConnected } = useSignalR();
-  const { startCall } = useAudioCall();
+  const { startCall } = useCall();
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -32,6 +34,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showChatInfo, setShowChatInfo] = useState(false);
+  const [activeMobileMenuMessage, setActiveMobileMenuMessage] = useState<any>(null);
   const { t, i18n } = useTranslation();
 
   // Determine chat name
@@ -354,42 +357,37 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
   };
 
   const renderCallingSystemMessage = (msg: any) => {
-    const isRtl = i18n.language === 'ar' || document.documentElement.dir === 'rtl';
     const timeString = new Date(msg.createdAt).toLocaleTimeString(i18n.language, { hour: '2-digit', minute: '2-digit' });
+    const formattedText = formatCallSystemMessage(msg.content, t);
     
-    if (msg.content === '[System:MissedCall]') {
+    const isMissed = msg.content === '[System:MissedCall]' || msg.content === '[System:MissedVideoCall]';
+    const isVideo = msg.content === '[System:MissedVideoCall]' || msg.content.startsWith('[System:CompletedVideoCall:');
+    
+    if (isMissed) {
       return (
         <div className="flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 bg-rose-50 border border-rose-100/60 rounded-full text-xs font-semibold text-rose-700 shadow-sm transition-all duration-300">
-          <PhoneOff size={14} className="text-rose-500 animate-pulse shrink-0" />
-          <span>{isRtl ? 'مكالمة صوتية فائتة' : 'Missed Audio Call'}</span>
+          {isVideo ? (
+            <VideoOff size={14} className="text-rose-500 animate-pulse shrink-0" />
+          ) : (
+            <PhoneOff size={14} className="text-rose-500 animate-pulse shrink-0" />
+          )}
+          <span>{formattedText}</span>
           <span className="text-[10px] text-rose-400 font-normal">{timeString}</span>
         </div>
       );
-    }
-    
-    if (msg.content.startsWith('[System:CompletedCall:')) {
-      const parts = msg.content.split(':');
-      const durationSeconds = parseInt(parts[2], 10) || 0;
-      
-      const formatDuration = (secs: number) => {
-        const mins = Math.floor(secs / 60);
-        const remainingSecs = secs % 60;
-        return `${mins.toString().padStart(2, '0')}:${remainingSecs.toString().padStart(2, '0')}`;
-      };
-
+    } else {
       return (
         <div className="flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 bg-emerald-50 border border-emerald-100/60 rounded-full text-xs font-semibold text-emerald-700 shadow-sm transition-all duration-300">
-          <Phone size={14} className="text-emerald-600 shrink-0" />
-          <span>
-            {isRtl 
-              ? `مكالمة صوتية مكتملة (${formatDuration(durationSeconds)})` 
-              : `Completed Audio Call (${formatDuration(durationSeconds)})`}
-          </span>
+          {isVideo ? (
+            <Video size={14} className="text-emerald-600 shrink-0" />
+          ) : (
+            <Phone size={14} className="text-emerald-600 shrink-0" />
+          )}
+          <span>{formattedText}</span>
           <span className="text-[10px] text-emerald-400 font-normal">{timeString}</span>
         </div>
       );
     }
-    return null;
   };
 
   return (
@@ -461,13 +459,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
           <div className="bg-white px-4 py-4 md:px-8 flex flex-col items-center shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] relative">
             
             {showEmojiPicker && (
-              <div ref={emojiPickerRef} className="absolute bottom-full mb-2 right-4 sm:right-auto z-50">
+              <div ref={emojiPickerRef} className="absolute bottom-full mb-2 left-0 right-0 sm:left-auto sm:right-4 max-w-full z-50">
                 <EmojiPicker 
                   onEmojiClick={onEmojiClick} 
                   autoFocusSearch={false}
                   theme={Theme.LIGHT}
-                  width={300}
-                  height={350}
+                  width="100%"
+                  height={320}
                 />
               </div>
             )}
@@ -559,7 +557,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
               {onBack && (
                 <button 
                   onClick={onBack}
-                  className="p-2 -ml-2 rtl:-mr-2 rtl:ml-0 text-gray-500 hover:bg-gray-100 rounded-full transition-colors rtl:rotate-180"
+                  className="md:hidden p-2 -ml-2 rtl:-mr-2 rtl:ml-0 text-gray-500 hover:bg-gray-100 rounded-full transition-colors rtl:rotate-180"
                 >
                   <ArrowLeft size={20} />
                 </button>
@@ -606,15 +604,23 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
             {/* Header Actions */}
             <div className="flex items-center space-x-3 text-gray-400 shrink-0">
               {chat.type === 0 && otherParticipant && (
-                <button 
-                  onClick={() => startCall(chat.id, otherParticipant.userId, chatName)}
-                  className="p-2 hover:bg-emerald-50 rounded-full transition-all duration-200 text-emerald-600 hover:text-emerald-700 active:scale-95 flex items-center justify-center"
-                  title={t('chat.audio_call', 'Audio Call')}
-                >
-                  <Phone size={20} />
-                </button>
+                <>
+                  <button 
+                    onClick={() => startCall(chat.id, otherParticipant.userId, chatName, 'AUDIO')}
+                    className="p-2 hover:bg-emerald-50 rounded-full transition-all duration-200 text-emerald-600 hover:text-emerald-700 active:scale-95 flex items-center justify-center"
+                    title={t('chat.audio_call', 'Audio Call')}
+                  >
+                    <Phone size={20} />
+                  </button>
+                  <button 
+                    onClick={() => startCall(chat.id, otherParticipant.userId, chatName, 'VIDEO')}
+                    className="p-2 hover:bg-emerald-50 rounded-full transition-all duration-200 text-emerald-600 hover:text-emerald-700 active:scale-95 flex items-center justify-center"
+                    title={t('chat.video_call', 'Video Call')}
+                  >
+                    <Video size={20} />
+                  </button>
+                </>
               )}
-              <button className="p-2 hover:bg-gray-100 rounded-full transition-colors"><Video size={20} /></button>
               <button 
                 onClick={() => setShowChatInfo(!showChatInfo)}
                 className={`p-2 hover:bg-gray-100 rounded-full transition-colors ${showChatInfo ? 'text-blue-600 bg-blue-50' : ''}`}
@@ -644,7 +650,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                         </div>
                       )}
                       
-                      {msg.content && (msg.content === '[System:MissedCall]' || msg.content.startsWith('[System:CompletedCall:')) ? (
+                      {msg.content && (
+                        msg.content === '[System:MissedCall]' || 
+                        msg.content === '[System:MissedVideoCall]' || 
+                        msg.content.startsWith('[System:CompletedCall:') || 
+                        msg.content.startsWith('[System:CompletedVideoCall:')
+                      ) ? (
                         <div className="flex justify-center my-4 font-sans select-none animate-fadeIn">
                           {renderCallingSystemMessage(msg)}
                         </div>
@@ -656,13 +667,18 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                         </div>
                       ) : (
                       <div className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
-                        <div className={`max-w-[70%] relative group ${isMine ? 'order-2' : 'order-1'}`}>
+                        <div className={`max-w-[85%] md:max-w-[70%] relative group ${isMine ? 'order-2' : 'order-1'}`}>
                           {showSenderName && (
                             <span className="text-xs text-gray-500 ml-2 mb-1 block">{msg.senderName}</span>
                           )}
                           <div 
                             id={`msg-${msg.id}`}
-                            className={`px-4 py-2.5 rounded-2xl shadow-sm transition-shadow duration-500 ${
+                            onClick={() => {
+                              if (window.innerWidth < 768) {
+                                setActiveMobileMenuMessage(msg);
+                              }
+                            }}
+                            className={`px-4 py-2.5 rounded-2xl shadow-sm transition-shadow duration-500 cursor-pointer md:cursor-default ${
                               isMine 
                                 ? 'bg-blue-600 text-white rounded-br-none' 
                                 : 'bg-white border border-gray-100 text-gray-800 rounded-bl-none'
@@ -757,7 +773,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                           </div>
                           
                           {/* Reply and Reaction Buttons */}
-                          <div className={`absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-2 ${isMine ? '-left-64' : '-right-64'}`}>
+                          <div className={`hidden md:flex absolute top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity items-center gap-2 ${isMine ? '-left-64' : '-right-64'}`}>
                             <div className="flex bg-white border border-gray-100 shadow-md rounded-full px-2 py-1.5 items-center gap-0.5 shadow-xl">
                               {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(e => (
                                 <button key={e} onClick={() => toggleReaction(msg.id, e)} className="w-8 h-8 flex items-center justify-center rounded-full transition-transform hover:bg-gray-100 hover:scale-125 text-xl">
@@ -829,13 +845,13 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                 )}
                 
                 {showEmojiPicker && (
-                  <div ref={emojiPickerRef} className="absolute bottom-full left-4 rtl:right-4 rtl:left-auto mb-2 z-50">
+                  <div ref={emojiPickerRef} className="absolute bottom-full left-0 right-0 md:left-4 md:right-auto max-w-full mb-2 z-50">
                     <EmojiPicker 
                       onEmojiClick={onEmojiClick} 
                       autoFocusSearch={false}
                       theme={Theme.LIGHT}
-                      width={350}
-                      height={400}
+                      width="100%"
+                      height={350}
                     />
                   </div>
                 )}
@@ -881,6 +897,106 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                 onGoToMessage={scrollToMessage}
               />
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Message Actions Bottom Sheet */}
+      {activeMobileMenuMessage && (
+        <div className="md:hidden fixed inset-0 z-50 flex flex-col justify-end bg-black/40 backdrop-blur-sm animate-fadeIn">
+          {/* Backdrop click to dismiss */}
+          <div className="absolute inset-0" onClick={() => setActiveMobileMenuMessage(null)} />
+          
+          {/* Bottom sheet container */}
+          <div className="relative bg-white rounded-t-3xl p-6 shadow-2xl z-10 flex flex-col max-h-[80vh] overflow-y-auto animate-slideUp">
+            {/* Grabber indicator */}
+            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6 shrink-0" />
+            
+            {/* Quick Preview of the message */}
+            <div className="mb-6 border-b border-gray-100 pb-4">
+              <span className="text-xs font-semibold text-gray-400 block mb-2">
+                {activeMobileMenuMessage.senderId === user?.userId ? t('chat.you') : (activeMobileMenuMessage.senderName || chatName)}
+              </span>
+              <div className={`p-3 rounded-xl inline-block max-w-full text-sm ${
+                activeMobileMenuMessage.senderId === user?.userId ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'
+              }`}>
+                {activeMobileMenuMessage.content && <p className="break-words">{activeMobileMenuMessage.content}</p>}
+                {activeMobileMenuMessage.attachments && activeMobileMenuMessage.attachments.length > 0 && (
+                  <p className="text-xs mt-1 italic opacity-85">
+                    📎 {activeMobileMenuMessage.attachments.length} {t('chat.shared_files')}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Quick Reactions Grid */}
+            <div className="mb-6">
+              <span className="text-xs font-semibold text-gray-400 block mb-3">{t('chat.react', 'React')}</span>
+              <div className="flex justify-between bg-gray-50 border border-gray-100 rounded-2xl p-2 items-center gap-1">
+                {['👍', '❤️', '😂', '😮', '😢', '🙏'].map(e => {
+                  const isReacted = activeMobileMenuMessage.reactions?.some((r: any) => r.userId === user?.userId && r.emoji === e);
+                  return (
+                    <button 
+                      key={e} 
+                      onClick={() => {
+                        toggleReaction(activeMobileMenuMessage.id, e);
+                        setActiveMobileMenuMessage(null);
+                      }} 
+                      className={`w-10 h-10 flex items-center justify-center rounded-full transition-transform active:scale-125 text-2xl ${
+                        isReacted ? 'bg-blue-100 border border-blue-200' : 'hover:bg-gray-200'
+                      }`}
+                    >
+                      {e}
+                    </button>
+                  );
+                })}
+                <button 
+                  onClick={() => {
+                    setActiveMessagePicker(activeMobileMenuMessage.id);
+                    setActiveMobileMenuMessage(null);
+                  }} 
+                  className="w-9 h-9 flex items-center justify-center bg-gray-200 text-gray-600 active:bg-gray-300 rounded-full"
+                >
+                  <Plus size={18} />
+                </button>
+              </div>
+            </div>
+
+            {/* Actions List */}
+            <div className="space-y-2">
+              <button 
+                onClick={() => {
+                  setReplyingTo(activeMobileMenuMessage);
+                  setActiveMobileMenuMessage(null);
+                }}
+                className="w-full flex items-center space-x-3 rtl:space-x-reverse p-3.5 hover:bg-gray-50 active:bg-gray-100 rounded-xl transition-colors text-left rtl:text-right text-gray-700"
+              >
+                <Reply size={20} className="text-blue-500 shrink-0" />
+                <span className="text-sm font-medium">{t('chat.reply', 'Reply')}</span>
+              </button>
+              
+              {activeMobileMenuMessage.content && (
+                <button 
+                  onClick={() => {
+                    navigator.clipboard.writeText(activeMobileMenuMessage.content);
+                    toast.success(t('chat.text_copied') || 'Copied to clipboard');
+                    setActiveMobileMenuMessage(null);
+                  }}
+                  className="w-full flex items-center space-x-3 rtl:space-x-reverse p-3.5 hover:bg-gray-50 active:bg-gray-100 rounded-xl transition-colors text-left rtl:text-right text-gray-700"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-teal-500 shrink-0"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>
+                  <span className="text-sm font-medium">{t('chat.copy_text') || 'Copy Text'}</span>
+                </button>
+              )}
+
+              {/* Dismiss button */}
+              <button 
+                onClick={() => setActiveMobileMenuMessage(null)}
+                className="w-full p-3.5 bg-gray-100 hover:bg-gray-200 active:bg-gray-300 rounded-xl transition-colors text-center font-bold text-sm text-gray-600 mt-4 shrink-0"
+              >
+                {t('common.cancel') || 'Cancel'}
+              </button>
+            </div>
           </div>
         </div>
       )}

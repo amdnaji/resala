@@ -58,7 +58,11 @@
     "group_creator_admin_hint": "You will be the group admin.",
     "add_participants": "Add Participants",
     "you": "You",
-    "new_message": "New Message"
+    "new_message": "New Message",
+    "missed_audio_call": "Missed Audio Call",
+    "completed_audio_call": "Completed Audio Call ({{duration}})",
+    "missed_video_call": "Missed Video Call",
+    "completed_video_call": "Completed Video Call ({{duration}})"
   },
   "sidebar": {
     "chats": "Chats",

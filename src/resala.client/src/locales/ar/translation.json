@@ -58,7 +58,11 @@
     "group_creator_admin_hint": "ستكون أنت مشرف المجموعة.",
     "add_participants": "إضافة مشاركين",
     "you": "أنت",
-    "new_message": "رسالة جديدة"
+    "new_message": "رسالة جديدة",
+    "missed_audio_call": "مكالمة صوتية فائتة",
+    "completed_audio_call": "مكالمة صوتية مكتملة ({{duration}})",
+    "missed_video_call": "مكالمة فيديو فائتة",
+    "completed_video_call": "مكالمة فيديو مكتملة ({{duration}})"
   },
   "sidebar": {
     "chats": "المحادثات",

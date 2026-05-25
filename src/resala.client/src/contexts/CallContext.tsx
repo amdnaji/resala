@@ -1,10 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
 import { useSignalR } from './SignalRContext';
+import { VideoBackgroundBlurrer } from '../utils/blurHelper';
 
 export type CallState = 'IDLE' | 'OUTGOING' | 'INCOMING' | 'CONNECTED' | 'DISCONNECTED' | 'BUSY';
+export type CallType = 'AUDIO' | 'VIDEO';
 
-interface AudioCallContextType {
+interface CallContextType {
   callState: CallState;
+  callType: CallType;
   chatId: string | null;
   callerId: string | null;
   callerName: string | null;
@@ -12,15 +15,23 @@ interface AudioCallContextType {
   receiverName: string | null;
   duration: number;
   isMuted: boolean;
-  startCall: (chatId: string, targetUserId: string, targetUserName: string) => Promise<void>;
+  isVideoMuted: boolean;
+  isScreenSharing: boolean;
+  isBackgroundBlurred: boolean;
+  isBlurLoading: boolean;
+  startCall: (chatId: string, targetUserId: string, targetUserName: string, type: CallType) => Promise<void>;
   acceptCall: () => Promise<void>;
   rejectCall: (reason?: string) => Promise<void>;
   endCall: () => Promise<void>;
   toggleMute: () => void;
+  toggleVideo: () => void;
+  toggleScreenShare: () => Promise<void>;
+  toggleBackgroundBlur: () => Promise<void>;
+  localStream: MediaStream | null;
   remoteStream: MediaStream | null;
 }
 
-const AudioCallContext = createContext<AudioCallContextType | undefined>(undefined);
+const CallContext = createContext<CallContextType | undefined>(undefined);
 
 // Web Audio API Synthesizer Sound Generator
 class CallSoundEffects {
@@ -178,25 +189,34 @@ class CallSoundEffects {
 
 const sounds = new CallSoundEffects();
 
-export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { connection, isConnected } = useSignalR();
 
   // Call States
   const [callState, setCallState] = useState<CallState>('IDLE');
+  const [callType, setCallType] = useState<CallType>('AUDIO');
   const [chatId, setChatId] = useState<string | null>(null);
   const [callerId, setCallerId] = useState<string | null>(null);
   const [callerName, setCallerName] = useState<string | null>(null);
   const [receiverId, setReceiverId] = useState<string | null>(null);
   const [receiverName, setReceiverName] = useState<string | null>(null);
   const [duration, setDuration] = useState(0);
+  
+  // Toggles & Streams
   const [isMuted, setIsMuted] = useState(false);
+  const [isVideoMuted, setIsVideoMuted] = useState(false);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const [isBackgroundBlurred, setIsBackgroundBlurred] = useState(false);
+  const [isBlurLoading, setIsBlurLoading] = useState(false);
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
   // WebRTC References
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
-  const audioTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
+  const screenShareTrackRef = useRef<MediaStreamTrack | null>(null); // Active screen share track reference
+  const blurrerRef = useRef<VideoBackgroundBlurrer | null>(null);
+  const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Ringing & Call Tracking References
   const isCallerRef = useRef<boolean>(false);
@@ -205,15 +225,21 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
 
   // State refs to prevent closure issues in listeners
   const callStateRef = useRef<CallState>('IDLE');
+  const callTypeRef = useRef<CallType>('AUDIO');
+  
   useEffect(() => {
     callStateRef.current = callState;
   }, [callState]);
 
   useEffect(() => {
+    callTypeRef.current = callType;
+  }, [callType]);
+
+  useEffect(() => {
     durationRef.current = duration;
   }, [duration]);
 
-  // Call System Message logger
+  // Log system message in DB
   const logCallMessage = (cId: string, content: string) => {
     if (connection && isConnected) {
       connection.invoke('SendMessage', cId, content, null, null).catch(err => {
@@ -236,9 +262,9 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
   const cleanupCall = () => {
     sounds.stop();
     
-    if (audioTimerRef.current) {
-      clearInterval(audioTimerRef.current);
-      audioTimerRef.current = null;
+    if (callTimerRef.current) {
+      clearInterval(callTimerRef.current);
+      callTimerRef.current = null;
     }
 
     if (ringingTimeoutRef.current) {
@@ -246,9 +272,19 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
       ringingTimeoutRef.current = null;
     }
 
+    if (blurrerRef.current) {
+      blurrerRef.current.stop();
+      blurrerRef.current = null;
+    }
+
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
       localStreamRef.current = null;
+    }
+
+    if (screenShareTrackRef.current) {
+      screenShareTrackRef.current.stop();
+      screenShareTrackRef.current = null;
     }
 
     if (peerConnectionRef.current) {
@@ -256,14 +292,13 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
       peerConnectionRef.current = null;
     }
 
-    if (remoteAudioRef.current) {
-      remoteAudioRef.current.srcObject = null;
-      remoteAudioRef.current.remove();
-      remoteAudioRef.current = null;
-    }
-
+    setLocalStream(null);
     setRemoteStream(null);
     setIsMuted(false);
+    setIsVideoMuted(false);
+    setIsScreenSharing(false);
+    setIsBackgroundBlurred(false);
+    setIsBlurLoading(false);
     setDuration(0);
   };
 
@@ -272,15 +307,16 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
     if (!connection || !isConnected) return;
 
     // 1. INCOMING CALL
-    const handleIncomingCall = (cId: string, fromUserId: string, fromName: string) => {
-      console.log(`Incoming call received: Chat: ${cId}, From: ${fromName} (${fromUserId})`);
+    const handleIncomingCall = (cId: string, fromUserId: string, fromName: string, type: CallType) => {
+      console.log(`Incoming ${type} call received: Chat: ${cId}, From: ${fromName} (${fromUserId})`);
       if (callStateRef.current !== 'IDLE') {
-        // We are already in a call, reject as busy
+        // Already in a call, reject as busy
         connection.invoke('RejectCall', cId, fromUserId, 'BUSY').catch(console.error);
         return;
       }
 
       isCallerRef.current = false;
+      setCallType(type || 'AUDIO');
       setCallState('INCOMING');
       setChatId(cId);
       setCallerId(fromUserId);
@@ -303,13 +339,13 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
       
       // Start duration timer
       setDuration(0);
-      audioTimerRef.current = setInterval(() => {
+      callTimerRef.current = setInterval(() => {
         setDuration(prev => prev + 1);
       }, 1000);
 
       // Start WebRTC Negotiation as Caller
       try {
-        await initWebRTCPipeline(cId, byUserId, true);
+        await initWebRTCPipeline(cId, byUserId, true, callTypeRef.current);
       } catch (err) {
         console.error('Failed to initialize WebRTC call:', err);
         endCall();
@@ -327,13 +363,14 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
       }
 
       // Log missed call
-      logCallMessage(cId, '[System:MissedCall]');
+      const isVideo = callTypeRef.current === 'VIDEO';
+      logCallMessage(cId, isVideo ? '[System:MissedVideoCall]' : '[System:MissedCall]');
 
       setCallState('BUSY');
       sounds.stop();
       sounds.playBusy();
 
-      // Return to idle after 3 seconds of busy signals
+      // Return to idle after 3.5 seconds
       setTimeout(() => {
         setCallState('IDLE');
         cleanupCall();
@@ -345,7 +382,8 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
       console.log(`Call ended by: ${byUserId} in Chat: ${cId}`);
 
       if (isCallerRef.current && callStateRef.current === 'CONNECTED') {
-        logCallMessage(cId, `[System:CompletedCall:${durationRef.current}]`);
+        const isVideo = callTypeRef.current === 'VIDEO';
+        logCallMessage(cId, isVideo ? `[System:CompletedVideoCall:${durationRef.current}]` : `[System:CompletedCall:${durationRef.current}]`);
       }
 
       setCallState('DISCONNECTED');
@@ -360,7 +398,10 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
     const handleReceiveSdp = async (cId: string, fromUserId: string, sdpType: string, sdp: string) => {
       console.log(`SDP ${sdpType} received from: ${fromUserId}`);
       const pc = peerConnectionRef.current;
-      if (!pc) return;
+      if (!pc) {
+        console.warn('SDP discarded: Peer connection is not yet initialized.');
+        return;
+      }
 
       try {
         if (sdpType === 'offer') {
@@ -385,7 +426,10 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
       sdpMLineIndex: number
     ) => {
       const pc = peerConnectionRef.current;
-      if (!pc) return;
+      if (!pc) {
+        console.warn('ICE candidate discarded: Peer connection is not yet initialized.');
+        return;
+      }
 
       try {
         await pc.addIceCandidate(new RTCIceCandidate({ candidate, sdpMid, sdpMLineIndex }));
@@ -412,10 +456,20 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
   }, [connection, isConnected]);
 
   // WebRTC Setup Pipeline
-  const initWebRTCPipeline = async (cId: string, targetUserId: string, isInitiator: boolean) => {
-    // 1. Get user media
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-    localStreamRef.current = stream;
+  const initWebRTCPipeline = async (cId: string, targetUserId: string, isInitiator: boolean, type: CallType) => {
+    let stream = localStreamRef.current;
+
+    // 1. Get user media if not already warmed up
+    if (!stream) {
+      const constraints = {
+        audio: true,
+        video: type === 'VIDEO' ? { width: 1280, height: 720, frameRate: 30 } : false
+      };
+
+      stream = await navigator.mediaDevices.getUserMedia(constraints);
+      localStreamRef.current = stream;
+      setLocalStream(stream);
+    }
 
     // 2. Setup RTCPeerConnection (Local STUN server as primary, Google STUN as fallback)
     const pc = new RTCPeerConnection({
@@ -448,19 +502,9 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
 
     // 5. Handle Remote Media Stream
     pc.ontrack = (event) => {
-      console.log('Remote audio track received');
+      console.log('Remote track received:', event.track.kind);
       const [remoteMediaStream] = event.streams;
       setRemoteStream(remoteMediaStream);
-
-      // Programmatically create HTML5 audio element to play sound
-      if (!remoteAudioRef.current) {
-        const audio = document.createElement('audio');
-        audio.autoplay = true;
-        audio.style.display = 'none';
-        document.body.appendChild(audio);
-        remoteAudioRef.current = audio;
-      }
-      remoteAudioRef.current.srcObject = remoteMediaStream;
     };
 
     // 6. Handle negotiation (Only initiator triggers offer)
@@ -479,16 +523,33 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
     }
   };
 
-  // Caller: start call
-  const startCall = async (cId: string, targetUserId: string, targetUserName: string) => {
+  // Caller: Start call
+  const startCall = async (cId: string, targetUserId: string, targetUserName: string, type: CallType) => {
     if (!connection || callState !== 'IDLE') return;
 
     isCallerRef.current = true;
+    setCallType(type);
     setCallState('OUTGOING');
     setChatId(cId);
     setReceiverId(targetUserId);
     setReceiverName(targetUserName);
     sounds.playDialing();
+
+    // Warm up camera immediately for video call
+    if (type === 'VIDEO') {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: { width: 1280, height: 720, frameRate: 30 }
+        });
+        localStreamRef.current = stream;
+        setLocalStream(stream);
+
+        // Pre-warmed stream setup complete
+      } catch (err) {
+        console.error("Failed to warm up camera on startCall:", err);
+      }
+    }
 
     // Ringing timeout (45 seconds)
     ringingTimeoutRef.current = setTimeout(() => {
@@ -497,7 +558,7 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
     }, 45000);
 
     try {
-      await connection.invoke('StartCall', cId, targetUserId);
+      await connection.invoke('StartCall', cId, targetUserId, type);
     } catch (err) {
       console.error('SignalR start call failed:', err);
       setCallState('IDLE');
@@ -505,7 +566,7 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
     }
   };
 
-  // Callee: accept call
+  // Callee: Accept call (Race-condition-free setup)
   const acceptCall = async () => {
     if (!connection || callState !== 'INCOMING' || !chatId || !callerId) return;
 
@@ -515,20 +576,22 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
 
     // Start timer
     setDuration(0);
-    audioTimerRef.current = setInterval(() => {
+    callTimerRef.current = setInterval(() => {
       setDuration(prev => prev + 1);
     }, 1000);
 
     try {
+      // 1. Initialize receiver pipeline first!
+      await initWebRTCPipeline(chatId, callerId, false, callTypeRef.current);
+      // 2. Only notify the sender after we are fully ready to receive signaling
       await connection.invoke('AcceptCall', chatId, callerId);
-      await initWebRTCPipeline(chatId, callerId, false);
     } catch (err) {
       console.error('SignalR accept call failed:', err);
       endCall();
     }
   };
 
-  // Callee: reject call
+  // Callee: Reject call
   const rejectCall = async (reason = 'DECLINED') => {
     if (!connection || callState !== 'INCOMING' || !chatId || !callerId) return;
 
@@ -542,19 +605,20 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
     }
   };
 
-  // Either party: end call
+  // Either party: End call
   const endCall = async () => {
     const targetUserId = targetUserIdRef.current;
     const cId = activeChatIdRef.current;
 
     console.log(`Ending call. Target: ${targetUserId}, Chat: ${cId}`);
 
-    // If caller ends it while OUTGOING, or either ends it while CONNECTED
+    // Log call event
     if (cId) {
+      const isVideo = callTypeRef.current === 'VIDEO';
       if (callState === 'OUTGOING') {
-        logCallMessage(cId, '[System:MissedCall]');
+        logCallMessage(cId, isVideo ? '[System:MissedVideoCall]' : '[System:MissedCall]');
       } else if (callState === 'CONNECTED' && isCallerRef.current) {
-        logCallMessage(cId, `[System:CompletedCall:${durationRef.current}]`);
+        logCallMessage(cId, isVideo ? `[System:CompletedVideoCall:${durationRef.current}]` : `[System:CompletedCall:${durationRef.current}]`);
       }
     }
 
@@ -575,7 +639,7 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
     }, 1500);
   };
 
-  // Toggle Mute
+  // Mute local microphone
   const toggleMute = () => {
     if (localStreamRef.current) {
       const audioTrack = localStreamRef.current.getAudioTracks()[0];
@@ -586,7 +650,149 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
     }
   };
 
-  // Auto clean up when context unmounts
+  // Turn camera on/off
+  const toggleVideo = () => {
+    if (callType !== 'VIDEO') return;
+    
+    if (localStreamRef.current) {
+      const videoTrack = localStreamRef.current.getVideoTracks()[0];
+      if (videoTrack) {
+        videoTrack.enabled = !videoTrack.enabled;
+        setIsVideoMuted(!videoTrack.enabled);
+      }
+    }
+  };
+
+  // Start / Stop screen sharing
+  const toggleScreenShare = async () => {
+    if (callState !== 'CONNECTED' || callType !== 'VIDEO') return;
+
+    if (isScreenSharing) {
+      // STOP SCREEN SHARING
+      try {
+        if (screenShareTrackRef.current) {
+          screenShareTrackRef.current.stop();
+          screenShareTrackRef.current = null;
+        }
+
+        // Restore raw camera track
+        if (localStreamRef.current) {
+          const rawVideoTrack = localStreamRef.current.getVideoTracks()[0];
+          
+          if (peerConnectionRef.current && rawVideoTrack) {
+            const senders = peerConnectionRef.current.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+              await videoSender.replaceTrack(rawVideoTrack);
+            }
+          }
+
+          // Restore local preview to raw stream
+          setLocalStream(localStreamRef.current);
+        }
+        setIsScreenSharing(false);
+      } catch (err) {
+        console.error('Failed to restore camera feed:', err);
+      }
+    } else {
+      // START SCREEN SHARING
+      try {
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+        const screenTrack = screenStream.getVideoTracks()[0];
+        screenShareTrackRef.current = screenTrack;
+
+        // Swap track on RTCPeerConnection
+        if (peerConnectionRef.current) {
+          const senders = peerConnectionRef.current.getSenders();
+          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+          if (videoSender) {
+            await videoSender.replaceTrack(screenTrack);
+          }
+        }
+
+        // Create a new stream combining screen video track + raw audio track
+        const rawAudioTrack = localStreamRef.current?.getAudioTracks()[0];
+        const combinedTracks = [screenTrack];
+        if (rawAudioTrack) combinedTracks.push(rawAudioTrack);
+        
+        setLocalStream(new MediaStream(combinedTracks));
+        setIsScreenSharing(true);
+
+        screenTrack.onended = () => {
+          toggleScreenShare(); // Toggles back to camera
+        };
+      } catch (err) {
+        console.error('Failed to initiate screen share:', err);
+      }
+    }
+  };
+
+  // Start / Stop Real-time Video Background Blur via Canvas Swapping
+  const toggleBackgroundBlur = async () => {
+    if (callState !== 'CONNECTED' || callType !== 'VIDEO') return;
+
+    if (isBackgroundBlurred) {
+      // STOP BACKGROUND BLUR
+      try {
+        if (blurrerRef.current) {
+          blurrerRef.current.stop();
+          blurrerRef.current = null;
+        }
+
+        // Restore raw camera track on active RTCPeerConnection sender
+        if (localStreamRef.current) {
+          const rawVideoTrack = localStreamRef.current.getVideoTracks()[0];
+          if (peerConnectionRef.current && rawVideoTrack) {
+            const senders = peerConnectionRef.current.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+              await videoSender.replaceTrack(rawVideoTrack);
+            }
+          }
+
+          // Restore local preview to raw stream
+          setLocalStream(localStreamRef.current);
+        }
+
+        setIsBackgroundBlurred(false);
+      } catch (err) {
+        console.error('Failed to disable background blur:', err);
+      }
+    } else {
+      // START BACKGROUND BLUR
+      setIsBlurLoading(true);
+      try {
+        if (localStreamRef.current) {
+          // Pass the pristine active raw stream to the blurrer
+          const blurrer = new VideoBackgroundBlurrer(localStreamRef.current);
+          await blurrer.initialize(); // Dynamically downloads WASM segmentation models from CDN
+          blurrerRef.current = blurrer;
+
+          const blurredStream = await blurrer.start();
+          const blurredVideoTrack = blurredStream.getVideoTracks()[0];
+
+          // Swap track on active RTCPeerConnection sender
+          if (peerConnectionRef.current && blurredVideoTrack) {
+            const senders = peerConnectionRef.current.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+              await videoSender.replaceTrack(blurredVideoTrack);
+            }
+          }
+
+          // Update local preview to show blurred stream
+          setLocalStream(blurredStream);
+          setIsBackgroundBlurred(true);
+        }
+      } catch (err) {
+        console.error('Failed to enable background blur:', err);
+      } finally {
+        setIsBlurLoading(false);
+      }
+    }
+  };
+
+  // Cleanup when unmounting
   useEffect(() => {
     return () => {
       cleanupCall();
@@ -594,9 +800,10 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
   }, []);
 
   return (
-    <AudioCallContext.Provider
+    <CallContext.Provider
       value={{
         callState,
+        callType,
         chatId,
         callerId,
         callerName,
@@ -604,23 +811,31 @@ export const AudioCallProvider: React.FC<{ children: ReactNode }> = ({ children 
         receiverName,
         duration,
         isMuted,
+        isVideoMuted,
+        isScreenSharing,
+        isBackgroundBlurred,
+        isBlurLoading,
         startCall,
         acceptCall,
         rejectCall,
         endCall,
         toggleMute,
+        toggleVideo,
+        toggleScreenShare,
+        toggleBackgroundBlur,
+        localStream,
         remoteStream
       }}
     >
       {children}
-    </AudioCallContext.Provider>
+    </CallContext.Provider>
   );
 };
 
-export const useAudioCall = () => {
-  const context = useContext(AudioCallContext);
+export const useCall = () => {
+  const context = useContext(CallContext);
   if (context === undefined) {
-    throw new Error('useAudioCall must be used within an AudioCallProvider');
+    throw new Error('useCall must be used within a CallProvider');
   }
   return context;
 };

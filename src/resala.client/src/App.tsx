@@ -1,7 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SignalRProvider } from './contexts/SignalRContext';
-import { AudioCallProvider } from './contexts/AudioCallContext';
+import { CallProvider } from './contexts/CallContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { CallOverlay } from './components/CallOverlay';
 import { useTranslation } from 'react-i18next';
@@ -28,7 +28,7 @@ function App() {
   return (
     <AuthProvider>
       <SignalRProvider>
-        <AudioCallProvider>
+        <CallProvider>
           <BrowserRouter>
             <Routes>
               <Route path="/login" element={<Login />} />
@@ -55,7 +55,7 @@ function App() {
               }} 
             />
           </BrowserRouter>
-        </AudioCallProvider>
+        </CallProvider>
       </SignalRProvider>
     </AuthProvider>
   );

@@ -319,7 +319,7 @@ namespace Resala.Backend.Hubs
             });
         }
 
-        public async Task StartCall(string chatId, string targetUserId)
+        public async Task StartCall(string chatId, string targetUserId, string callType = "AUDIO")
         {
             var callerId = Context.UserIdentifier;
             if (string.IsNullOrWhiteSpace(callerId) || string.IsNullOrWhiteSpace(targetUserId)) return;
@@ -328,7 +328,7 @@ namespace Resala.Backend.Hubs
             var caller = await _context.Users.FindAsync(callerGuid);
             var callerName = caller?.DisplayName ?? caller?.UserName ?? "Unknown";
 
-            await Clients.User(targetUserId).SendAsync("incomingcall", chatId, callerId, callerName);
+            await Clients.User(targetUserId).SendAsync("incomingcall", chatId, callerId, callerName, callType);
         }
 
         public async Task AcceptCall(string chatId, string callerUserId)

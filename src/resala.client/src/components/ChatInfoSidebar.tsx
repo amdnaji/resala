@@ -160,7 +160,7 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({ chat, onClose,
   };
 
   return (
-    <div className="w-[350px] h-full bg-white border-l border-r rtl:border-r rtl:border-l-0 border-gray-200 flex flex-col shadow-xl z-20">
+    <div className="fixed inset-y-0 right-0 rtl:left-0 rtl:right-auto w-full sm:w-[350px] md:relative md:w-[350px] h-full bg-white border-l border-r rtl:border-r rtl:border-l-0 border-gray-200 flex flex-col shadow-xl z-30 animate-fadeIn md:animate-none">
       {/* Header */}
       <div className="h-16 px-4 border-b border-gray-200 flex items-center justify-between shrink-0">
         <h2 className="text-lg font-semibold text-gray-800">{t('chat.contact_info')}</h2>

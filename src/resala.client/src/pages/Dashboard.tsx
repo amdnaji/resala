@@ -15,7 +15,7 @@ export const Dashboard: React.FC = () => {
   return (
     <div className="flex h-screen bg-white overflow-hidden font-sans">
       {/* App Navigation / Profile Rail (Optional) */}
-      <div className="w-16 bg-gray-900 text-white flex flex-col items-center py-4 justify-between">
+      <div className="hidden md:flex w-16 bg-gray-900 text-white flex-col items-center py-4 justify-between shrink-0">
         <div 
           onClick={() => setSelectedChat(null)}
           className="w-10 h-10 bg-white rounded-xl flex items-center justify-center overflow-hidden mb-6 cursor-pointer border border-gray-100 shadow-sm"
@@ -71,12 +71,19 @@ export const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      <Sidebar onSelectChat={setSelectedChat} selectedChatId={selectedChat?.id} />
+      {/* Sidebar - taking full width on mobile when no chat is selected, hidden on mobile when chat is selected */}
+      <div className={`${selectedChat ? 'hidden md:flex' : 'flex'} w-full md:w-80 h-full shrink-0`}>
+        <Sidebar 
+          onSelectChat={setSelectedChat} 
+          selectedChatId={selectedChat?.id} 
+          onOpenProfile={() => setIsProfileOpen(true)}
+        />
+      </div>
       
       {selectedChat ? (
         <ChatArea chat={selectedChat} onBack={() => setSelectedChat(null)} />
       ) : (
-        <div className="flex-1 flex flex-col items-center justify-center bg-gray-50/50">
+        <div className="hidden md:flex flex-1 flex flex-col items-center justify-center bg-gray-50/50">
           <div className="w-24 h-24 bg-white rounded-3xl flex items-center justify-center mb-6 shadow-sm border border-gray-100">
             <img src="/logo.png" alt="Resala Logo" className="w-16 h-16 object-contain" />
           </div>

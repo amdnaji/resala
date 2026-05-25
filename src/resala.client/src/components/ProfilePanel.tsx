@@ -100,7 +100,7 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ isOpen, onClose }) =
       {/* Slide-over panel */}
       <div 
         className={`fixed top-0 left-0 rtl:right-0 rtl:left-auto h-screen w-full sm:w-[400px] bg-white shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : 'ltr:-translate-x-full rtl:translate-x-full'
+          isOpen ? 'translate-x-0' : '-translate-x-full rtl:translate-x-full'
         }`}
       >
         <div className="flex flex-col h-full">
