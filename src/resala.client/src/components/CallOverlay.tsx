@@ -1,9 +1,11 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useCall } from '../contexts/CallContext';
-import { Mic, MicOff, Phone, PhoneOff, User, Video, VideoOff, Monitor, MonitorOff, Loader2 } from 'lucide-react';
+import { Mic, MicOff, Phone, PhoneOff, User, Video, VideoOff, Monitor, MonitorOff, Loader2, Sparkles, Image as ImageIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export const CallOverlay: React.FC = () => {
+  const [showEffectsMenu, setShowEffectsMenu] = useState(false);
+
   const {
     callState,
     callType,
@@ -13,6 +15,9 @@ export const CallOverlay: React.FC = () => {
     isMuted,
     isVideoMuted,
     isScreenSharing,
+    videoMode,
+    setVideoEffectMode,
+    isBlurLoading,
     acceptCall,
     rejectCall,
     endCall,
@@ -226,6 +231,84 @@ export const CallOverlay: React.FC = () => {
               >
                 {isScreenSharing ? <MonitorOff size={18} /> : <Monitor size={18} />}
               </button>
+
+              {/* VIDEO EFFECTS POPUP MENU */}
+              <div className="relative">
+                <button
+                  id="toggleBlurBtn"
+                  onClick={() => setShowEffectsMenu(!showEffectsMenu)}
+                  disabled={callState !== 'CONNECTED' || isVideoMuted}
+                  className={`p-3 rounded-xl border transition-all duration-300 ${
+                    videoMode !== 'normal'
+                      ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
+                      : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed'
+                  }`}
+                  title={isRtl ? 'مؤثرات الفيديو' : 'Video Effects'}
+                >
+                  {isBlurLoading ? (
+                    <Loader2 size={18} className="animate-spin text-emerald-400" />
+                  ) : (
+                    <Sparkles size={18} />
+                  )}
+                </button>
+
+                {/* Floating Glassmorphic Menu */}
+                {showEffectsMenu && (
+                  <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 w-48 bg-slate-950/90 border border-slate-800 p-2 rounded-2xl backdrop-blur-xl shadow-2xl flex flex-col gap-1.5 animate-scaleUp">
+                    <span className="text-[10px] text-slate-400 font-semibold px-2.5 py-1 tracking-wider uppercase border-b border-slate-900/80 mb-1 block">
+                      {isRtl ? 'مؤثرات الكاميرا' : 'Camera Effects'}
+                    </span>
+                    
+                    {/* Normal Camera */}
+                    <button
+                      onClick={() => {
+                        setVideoEffectMode('normal');
+                        setShowEffectsMenu(false);
+                      }}
+                      className={`flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
+                        videoMode === 'normal'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : 'text-slate-300 hover:bg-slate-900 hover:text-white border border-transparent'
+                      }`}
+                    >
+                      <Video size={14} />
+                      <span>{isRtl ? 'كاميرا عادية' : 'Normal Camera'}</span>
+                    </button>
+
+                    {/* Background Blur */}
+                    <button
+                      onClick={() => {
+                        setVideoEffectMode('blur');
+                        setShowEffectsMenu(false);
+                      }}
+                      className={`flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
+                        videoMode === 'blur'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : 'text-slate-300 hover:bg-slate-900 hover:text-white border border-transparent'
+                      }`}
+                    >
+                      <Sparkles size={14} />
+                      <span>{isRtl ? 'تمويه الخلفية' : 'Blur Background'}</span>
+                    </button>
+
+                    {/* Virtual Background */}
+                    <button
+                      onClick={() => {
+                        setVideoEffectMode('bg');
+                        setShowEffectsMenu(false);
+                      }}
+                      className={`flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
+                        videoMode === 'bg'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : 'text-slate-300 hover:bg-slate-900 hover:text-white border border-transparent'
+                      }`}
+                    >
+                      <ImageIcon size={14} />
+                      <span>{isRtl ? 'الخلفية الافتراضية' : 'Virtual Background'}</span>
+                    </button>
+                  </div>
+                )}
+              </div>
 
 
               {/* END CALL BUTTON */}
