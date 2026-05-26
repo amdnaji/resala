@@ -267,7 +267,8 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const targetUserIdRef = useRef<string | null>(null);
   useEffect(() => {
-    targetUserIdRef.current = callState === 'OUTGOING' ? receiverId : callerId;
+    // Select correct target user based on whether we are the caller or callee
+    targetUserIdRef.current = isCallerRef.current ? receiverId : callerId;
   }, [callState, receiverId, callerId]);
 
   // Cleanup helper
