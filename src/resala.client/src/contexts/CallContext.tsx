@@ -544,6 +544,21 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       };
     }
+
+    // 7. If the caller already selected background blur/effects during dialing, hot-swap the track immediately
+    if (mode !== 'normal' && processedStream) {
+      const blurredTrack = processedStream.getVideoTracks()[0];
+      if (blurredTrack) {
+        const senders = pc.getSenders();
+        const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+        if (videoSender) {
+          console.log('[ResalaBlur] initWebRTCPipeline: Automatically hot-swapping track with active processed canvas track...');
+          await videoSender.replaceTrack(blurredTrack).catch(err => {
+            console.error('[ResalaBlur] Failed to auto replace track in pipeline:', err);
+          });
+        }
+      }
+    }
   };
 
   // Caller: Start call
@@ -780,7 +795,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // setVideoEffectMode: حلقة تغيير وضعية المعالجة وتشغيل محرك التصفية عند الطلب
   const setVideoEffectMode = async (newMode: 'normal' | 'blur' | 'bg') => {
-    if (callState !== 'CONNECTED' || callType !== 'VIDEO') return;
+    if ((callState !== 'CONNECTED' && callState !== 'OUTGOING') || callType !== 'VIDEO') return;
 
     const canvas = document.getElementById('blurCanvas') as HTMLCanvasElement;
     if (!canvas) {
@@ -1015,71 +1030,6 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     };
   }, []);
 
-  // Hook up incomingCallOverlay event handlers to prevent blocking confirms in Edge
-  useEffect(() => {
-    const overlay = document.getElementById('incomingCallOverlay');
-    const acceptBtn = document.getElementById('acceptCallBtn');
-    const rejectBtn = document.getElementById('rejectCallBtn');
-
-    const handleAccept = () => {
-      console.log('[incomingCallOverlay] Accept clicked.');
-      acceptCall();
-    };
-
-    const handleReject = () => {
-      console.log('[incomingCallOverlay] Reject clicked.');
-      rejectCall();
-    };
-
-    if (callState === 'INCOMING' && overlay) {
-      overlay.style.display = 'block';
-      overlay.style.position = 'fixed';
-      overlay.style.top = '16px';
-      overlay.style.left = '50%';
-      overlay.style.transform = 'translateX(-50%)';
-      overlay.style.zIndex = '999999';
-      overlay.style.backgroundColor = 'rgba(15, 23, 42, 0.95)';
-      overlay.style.border = '1px solid #334155';
-      overlay.style.color = 'white';
-      overlay.style.padding = '14px 28px';
-      overlay.style.borderRadius = '16px';
-      overlay.style.boxShadow = '0 20px 25px -5px rgba(0, 0, 0, 0.6)';
-      overlay.style.display = 'flex';
-      overlay.style.alignItems = 'center';
-      overlay.style.gap = '20px';
-      overlay.style.fontFamily = 'sans-serif';
-      overlay.style.fontSize = '14px';
-      overlay.style.fontWeight = 'bold';
-
-      if (acceptBtn) {
-        acceptBtn.style.backgroundColor = '#10b981';
-        acceptBtn.style.color = 'white';
-        acceptBtn.style.border = 'none';
-        acceptBtn.style.padding = '8px 18px';
-        acceptBtn.style.borderRadius = '8px';
-        acceptBtn.style.cursor = 'pointer';
-        acceptBtn.style.fontWeight = 'bold';
-        acceptBtn.addEventListener('click', handleAccept);
-      }
-      if (rejectBtn) {
-        rejectBtn.style.backgroundColor = '#ef4444';
-        rejectBtn.style.color = 'white';
-        rejectBtn.style.border = 'none';
-        rejectBtn.style.padding = '8px 18px';
-        rejectBtn.style.borderRadius = '8px';
-        rejectBtn.style.cursor = 'pointer';
-        rejectBtn.style.fontWeight = 'bold';
-        rejectBtn.addEventListener('click', handleReject);
-      }
-    } else if (overlay) {
-      overlay.style.display = 'none';
-    }
-
-    return () => {
-      if (acceptBtn) acceptBtn.removeEventListener('click', handleAccept);
-      if (rejectBtn) rejectBtn.removeEventListener('click', handleReject);
-    };
-  }, [callState, acceptCall, rejectCall]);
 
   return (
     <CallContext.Provider

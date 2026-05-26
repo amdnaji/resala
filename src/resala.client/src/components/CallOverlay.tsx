@@ -244,7 +244,7 @@ export const CallOverlay: React.FC = () => {
                 <button
                   id="toggleBlurBtn"
                   onClick={() => setShowEffectsMenu(!showEffectsMenu)}
-                  disabled={callState !== 'CONNECTED' || isVideoMuted}
+                  disabled={(callState !== 'CONNECTED' && callState !== 'OUTGOING') || isVideoMuted}
                   className={`p-3 rounded-xl border transition-all duration-300 ${
                     videoMode !== 'normal'
                       ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
