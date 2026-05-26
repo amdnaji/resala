@@ -165,6 +165,7 @@ export const CallOverlay: React.FC = () => {
             <div className="w-24 h-32 sm:w-36 sm:h-48 rounded-xl border border-white/10 shadow-2xl overflow-hidden bg-slate-900/80 backdrop-blur-md relative transition-transform duration-300 hover:scale-[1.03]">
               {localStream && !isVideoMuted ? (
                 <video
+                  id="localVideo"
                   ref={localVideoRef}
                   autoPlay
                   playsInline

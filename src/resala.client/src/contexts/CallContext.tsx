@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
 import { useSignalR } from './SignalRContext';
 import { SelfieSegmentation } from '@mediapipe/selfie_segmentation';
-import { Camera } from '@mediapipe/camera_utils';
 
 export type CallState = 'IDLE' | 'OUTGOING' | 'INCOMING' | 'CONNECTED' | 'DISCONNECTED' | 'BUSY';
 export type CallType = 'AUDIO' | 'VIDEO';
@@ -36,18 +35,12 @@ interface CallContextType {
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
 
-// Production-Grade Global States for MediaPipe Selfie Segmentation Video Effects
+// Global States for MediaPipe Selfie Segmentation Video Effects
 let mode: 'normal' | 'blur' | 'bg' = 'normal';
 let selfieSegmentation: SelfieSegmentation | null = null;
-let camera: Camera | null = null;
 let processedStream: MediaStream | null = null;
 let originalRawVideoTrack: MediaStreamTrack | null = null;
-
-// Throttling and Concurrency Control Guards (صمام الأمان لتقييد الإطارات والذاكرة)
-let isProcessingFrame = false;
-let lastFrameTime = 0;
-const targetFPS = 25; // Balanced for CPU/GPU savings (25 frames per second)
-const frameInterval = 1000 / targetFPS; // 40ms interval
+let renderLoopActive = false;
 
 
 // Web Audio API Synthesizer Sound Generator
@@ -290,21 +283,11 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ringingTimeoutRef.current = null;
     }
 
-    if (camera) {
-      try {
-        console.log('[ResalaBlur] Stopping MediaPipe Camera on call cleanup...');
-        camera.stop();
-      } catch (e) {
-        console.warn('[ResalaBlur] Error stopping camera during cleanup:', e);
-      }
-      camera = null;
-    }
+    renderLoopActive = false;
     mode = 'normal';
     selfieSegmentation = null;
     processedStream = null;
     originalRawVideoTrack = null;
-    isProcessingFrame = false;
-    lastFrameTime = 0;
     setVideoMode('normal');
 
     if (localStreamRef.current) {
@@ -801,7 +784,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    const ctx = canvas.getContext('2d');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) {
       console.error('[ResalaBlur] Failed to get 2D context for #blurCanvas');
       return;
@@ -828,12 +811,9 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // TURN OFF VIDEO EFFECTS
       console.log('[ResalaBlur] Reverting to Normal camera...');
       try {
-        // 1. Stop the MediaPipe camera loop
-        if (camera) {
-          console.log('[ResalaBlur] Stopping MediaPipe Camera utility...');
-          await camera.stop();
-          camera = null;
-        }
+        // 1. Stop the render loop
+        renderLoopActive = false;
+        console.log('[ResalaBlur] Render loop stopped.');
 
         // 2. Revert RTCPeerConnection video track back to the original raw video track
         if (peerConnectionRef.current && originalRawVideoTrack) {
@@ -890,78 +870,62 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             modelSelection: 0 // General model selection for high shoulders/chair accuracy
           });
 
-          // 3. onResults strictly compliant with safety valves and canvas composition
+          // 3. onResults - canvas composition matching the proven working standalone code
           selfieSegmentation.onResults((results: any) => {
-            try {
-              if (mode === 'normal' || !canvas || !ctx) return;
+            if (mode === 'normal' || !canvas || !ctx) return;
 
-              ctx.save();
-              ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-              // 1. Draw the segmentation mask
-              ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+            // 1. Draw the segmentation mask
+            ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
 
-              // 2. Draw the raw video ONLY where the mask is (the person)
-              ctx.globalCompositeOperation = 'source-in';
+            // 2. Draw the raw video ONLY where the mask is (the person)
+            ctx.globalCompositeOperation = 'source-in';
+            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+            // 3. Draw the background behind the person
+            ctx.globalCompositeOperation = 'destination-over';
+
+            if (mode === 'blur') {
+              ctx.filter = 'blur(20px)';
               ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-              // 3. Draw the background/blurred image behind the person
-              ctx.globalCompositeOperation = 'destination-over';
-
-              if (mode === 'blur') {
-                ctx.filter = 'blur(20px)';  // 20px deep blur as in the updated lab code
-                ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-              } 
-              else if (mode === 'bg') {
-                ctx.filter = 'none';
-                const bgImg = document.getElementById('bgImg') as HTMLImageElement;
-                if (bgImg) {
-                  ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-                } else {
-                  // Fallback if image not preloaded
-                  ctx.fillStyle = '#1e1e24';
-                  ctx.fillRect(0, 0, canvas.width, canvas.height);
-                }
-              }
-
-              ctx.restore();
-            } finally {
-              // Open safety valve immediately to allow processing next frame
-              isProcessingFrame = false;
             }
+            else if (mode === 'bg') {
+              ctx.filter = 'none';
+              const bgImg = document.getElementById('bgImg') as HTMLImageElement;
+              if (bgImg) {
+                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+              } else {
+                ctx.fillStyle = '#1e1e24';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+              }
+            }
+
+            ctx.restore();
           });
         }
 
-        // 4. Initialize and start MediaPipe's Camera utility using NPM import
-        if (!camera) {
-          console.log('[ResalaBlur] Starting MediaPipe Camera utility loop (NPM version)...');
-          camera = new Camera(videoElement, {
-            onFrame: async () => {
-              if (mode !== 'normal' && selfieSegmentation) {
-                // FPS Throttling & Hardware Relief (25 FPS limit)
-                const timestamp = performance.now();
-                if (timestamp - lastFrameTime < frameInterval) {
-                  return;
-                }
+        // 4. Start requestAnimationFrame render loop (matching proven working standalone code)
+        if (!renderLoopActive) {
+          renderLoopActive = true;
+          console.log('[ResalaBlur] Starting requestAnimationFrame render loop...');
 
-                // Concurrent Frame Safety Valve: prevent chocking RAM
-                if (!isProcessingFrame) {
-                  isProcessingFrame = true;
-                  lastFrameTime = timestamp;
-                  try {
-                    await selfieSegmentation.send({ image: videoElement });
-                  } catch (e) {
-                    console.error('[ResalaBlur] Error inside segmentation loop:', e);
-                    isProcessingFrame = false;
-                  }
-                }
+          const processFrame = async () => {
+            if (!renderLoopActive) return;
+            if (mode !== 'normal' && selfieSegmentation) {
+              try {
+                await selfieSegmentation.send({ image: videoElement });
+              } catch (e) {
+                console.error('[ResalaBlur] Error in segmentation frame:', e);
               }
-            },
-            width: canvas.width,
-            height: canvas.height
-          });
+            }
+            if (renderLoopActive) {
+              requestAnimationFrame(processFrame);
+            }
+          };
 
-          await camera.start();
+          requestAnimationFrame(processFrame);
         }
 
         // 5. Capture the stream once globally if not already captured
