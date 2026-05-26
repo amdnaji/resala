@@ -163,23 +163,29 @@ export const CallOverlay: React.FC = () => {
           {/* Floating Picture-in-Picture Local Preview (Top Right of Card) */}
           <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20">
             <div className="w-24 h-32 sm:w-36 sm:h-48 rounded-xl border border-white/10 shadow-2xl overflow-hidden bg-slate-900/80 backdrop-blur-md relative transition-transform duration-300 hover:scale-[1.03]">
-              {localStream && !isVideoMuted ? (
-                <video
-                  id="localVideo"
-                  ref={localVideoRef}
-                  autoPlay
-                  playsInline
-                  muted
-                  className="w-full h-full object-cover transform -scale-x-100"
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-400">
-                  <VideoOff size={20} className="text-slate-500 animate-pulse mb-1" />
-                  <span className="text-[8px] uppercase font-bold tracking-wider opacity-60">
-                    {isRtl ? 'كاميرتك مغلقة' : 'Cam Muted'}
-                  </span>
-                </div>
-              )}
+              {/* Local video element persistently mounted in DOM to prevent document.getElementById('localVideo') null errors */}
+              <video
+                id="localVideo"
+                ref={localVideoRef}
+                autoPlay
+                playsInline
+                muted
+                className={`w-full h-full object-cover transform -scale-x-100 ${
+                  localStream && !isVideoMuted ? 'block' : 'hidden'
+                }`}
+              />
+
+              {/* Cam muted placeholder persistently mounted in DOM, hidden when camera is active */}
+              <div 
+                className={`w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-400 ${
+                  localStream && !isVideoMuted ? 'hidden' : 'flex'
+                }`}
+              >
+                <VideoOff size={20} className="text-slate-500 animate-pulse mb-1" />
+                <span className="text-[8px] uppercase font-bold tracking-wider opacity-60">
+                  {isRtl ? 'كاميرتك مغلقة' : 'Cam Muted'}
+                </span>
+              </div>
               {isScreenSharing && (
                 <div className="absolute bottom-1.5 left-1.5 bg-emerald-500 text-white rounded px-1 py-0.5 text-[7px] font-bold uppercase tracking-wider flex items-center gap-0.5 shadow">
                   <Monitor size={6} />

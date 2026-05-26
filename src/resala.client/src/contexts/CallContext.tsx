@@ -41,6 +41,7 @@ let selfieSegmentation: SelfieSegmentation | null = null;
 let processedStream: MediaStream | null = null;
 let originalRawVideoTrack: MediaStreamTrack | null = null;
 let renderLoopActive = false;
+let rawVideoElement: HTMLVideoElement | null = null;
 
 
 // Web Audio API Synthesizer Sound Generator
@@ -289,6 +290,14 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     processedStream = null;
     originalRawVideoTrack = null;
     setVideoMode('normal');
+
+    if (rawVideoElement) {
+      rawVideoElement.srcObject = null;
+      if (rawVideoElement.parentNode) {
+        rawVideoElement.parentNode.removeChild(rawVideoElement);
+      }
+      rawVideoElement = null;
+    }
 
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => track.stop());
@@ -778,12 +787,6 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    const videoElement = document.getElementById('localVideo') as HTMLVideoElement;
-    if (!videoElement) {
-      console.error('[ResalaBlur] Local video element #localVideo not found in DOM!');
-      return;
-    }
-
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
     if (!ctx) {
       console.error('[ResalaBlur] Failed to get 2D context for #blurCanvas');
@@ -815,7 +818,12 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         renderLoopActive = false;
         console.log('[ResalaBlur] Render loop stopped.');
 
-        // 2. Revert RTCPeerConnection video track back to the original raw video track
+        // 2. Clear raw video element stream
+        if (rawVideoElement) {
+          rawVideoElement.srcObject = null;
+        }
+
+        // 3. Revert RTCPeerConnection video track back to the original raw video track
         if (peerConnectionRef.current && originalRawVideoTrack) {
           const senders = peerConnectionRef.current.getSenders();
           const videoSender = senders.find(s => s.track && s.track.kind === 'video');
@@ -825,7 +833,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           }
         }
 
-        // 3. Restore original stream in local preview
+        // 4. Restore original stream in local preview
         if (localStreamRef.current && originalRawVideoTrack) {
           const rawAudioTrack = localStreamRef.current.getAudioTracks()[0];
           const restoredTracks = [originalRawVideoTrack];
@@ -833,7 +841,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setLocalStream(new MediaStream(restoredTracks));
         }
 
-        // 4. Clear the canvas to prevent memory leaks
+        // 5. Clear the canvas to prevent memory leaks
         ctx.clearRect(0, 0, canvas.width, canvas.height);
       } catch (err) {
         console.error('[ResalaBlur] Failed to revert to normal video:', err);
@@ -850,16 +858,42 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.log('[ResalaBlur] Original raw video track cached:', originalRawVideoTrack?.label);
         }
 
-        // Fix canvas dimensions to match video element
-        if (videoElement.videoWidth && videoElement.videoHeight) {
-          canvas.width = videoElement.videoWidth;
-          canvas.height = videoElement.videoHeight;
+        // 2. Initialize hidden raw video element if not done yet
+        if (!rawVideoElement) {
+          rawVideoElement = document.createElement('video');
+          rawVideoElement.id = 'resalaRawVideo';
+          rawVideoElement.autoplay = true;
+          rawVideoElement.playsInline = true;
+          rawVideoElement.muted = true;
+          rawVideoElement.style.display = 'none';
+          document.body.appendChild(rawVideoElement);
+          console.log('[ResalaBlur] Hidden raw video element created in DOM.');
+        }
+
+        // Feed original raw camera stream to the hidden video element
+        if (originalRawVideoTrack && rawVideoElement.srcObject === null) {
+          const rawStream = new MediaStream([originalRawVideoTrack]);
+          rawVideoElement.srcObject = rawStream;
+          await rawVideoElement.play().catch(err => console.error('[ResalaBlur] Failed to play rawVideoElement:', err));
+        } else if (localStreamRef.current && rawVideoElement.srcObject === null) {
+          const rawTracks = localStreamRef.current.getVideoTracks();
+          if (rawTracks.length > 0) {
+            const rawStream = new MediaStream([rawTracks[0]]);
+            rawVideoElement.srcObject = rawStream;
+            await rawVideoElement.play().catch(err => console.error('[ResalaBlur] Failed to play rawVideoElement fallback:', err));
+          }
+        }
+
+        // Fix canvas dimensions to match raw video element or fallback
+        if (rawVideoElement && rawVideoElement.videoWidth && rawVideoElement.videoHeight) {
+          canvas.width = rawVideoElement.videoWidth;
+          canvas.height = rawVideoElement.videoHeight;
         } else {
           canvas.width = 640;
           canvas.height = 480;
         }
 
-        // 2. Initialize SelfieSegmentation model using NPM import if not done
+        // 3. Initialize SelfieSegmentation model using NPM import if not done
         if (!selfieSegmentation) {
           console.log('[ResalaBlur] Initializing local MediaPipe SelfieSegmentation model (NPM version)...');
           selfieSegmentation = new SelfieSegmentation({
@@ -870,7 +904,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             modelSelection: 0 // General model selection for high shoulders/chair accuracy
           });
 
-          // 3. onResults - canvas composition matching the proven working standalone code
+          // 4. onResults - canvas composition matching the proven working standalone code
           selfieSegmentation.onResults((results: any) => {
             if (mode === 'normal' || !canvas || !ctx) return;
 
@@ -906,16 +940,16 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
         }
 
-        // 4. Start requestAnimationFrame render loop (matching proven working standalone code)
+        // 5. Start requestAnimationFrame render loop using rawVideoElement
         if (!renderLoopActive) {
           renderLoopActive = true;
           console.log('[ResalaBlur] Starting requestAnimationFrame render loop...');
 
           const processFrame = async () => {
             if (!renderLoopActive) return;
-            if (mode !== 'normal' && selfieSegmentation) {
+            if (mode !== 'normal' && selfieSegmentation && rawVideoElement) {
               try {
-                await selfieSegmentation.send({ image: videoElement });
+                await selfieSegmentation.send({ image: rawVideoElement });
               } catch (e) {
                 console.error('[ResalaBlur] Error in segmentation frame:', e);
               }
@@ -928,7 +962,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           requestAnimationFrame(processFrame);
         }
 
-        // 5. Capture the stream once globally if not already captured
+        // 6. Capture the stream once globally if not already captured
         if (!processedStream) {
           processedStream = (canvas as any).captureStream(30);
           console.log('[ResalaBlur] Canvas stream captured once globally.');
