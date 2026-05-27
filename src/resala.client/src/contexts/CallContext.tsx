@@ -525,6 +525,10 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // Caller: Start call
   const startCall = async (cId: string, targetUserId: string, targetUserName: string, type: CallType) => {
+    if (type === 'VIDEO') {
+      console.warn("Video calls are currently disabled.");
+      return;
+    }
     if (!connection || callState !== 'IDLE') return;
 
     isCallerRef.current = true;

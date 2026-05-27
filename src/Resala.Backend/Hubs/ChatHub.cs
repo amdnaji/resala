@@ -321,6 +321,11 @@ namespace Resala.Backend.Hubs
 
         public async Task StartCall(string chatId, string targetUserId, string callType = "AUDIO")
         {
+            if (callType == "VIDEO")
+            {
+                return;
+            }
+
             var callerId = Context.UserIdentifier;
             if (string.IsNullOrWhiteSpace(callerId) || string.IsNullOrWhiteSpace(targetUserId)) return;
 
