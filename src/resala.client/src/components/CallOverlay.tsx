@@ -71,7 +71,9 @@ export const CallOverlay: React.FC = () => {
   };
 
   // Get active name to display
-  const displayName = callState === 'INCOMING' ? callerName : receiverName;
+  const displayName = callState === 'INCOMING' 
+    ? callerName 
+    : (callState === 'OUTGOING' ? receiverName : (receiverName || callerName));
 
   // Call Status Label
   const getStatusLabel = () => {
