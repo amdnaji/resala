@@ -70,11 +70,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, selectedChatId, 
             // Show native desktop notification if tab is hidden
             if (document.visibilityState === 'hidden') {
               if (Notification.permission === 'granted') {
-                new Notification(chatName, { body: message.content });
+                new Notification(chatName, { body: formatCallSystemMessage(message.content, t) });
               } else if (Notification.permission !== 'denied') {
                 Notification.requestPermission().then(permission => {
                   if (permission === 'granted') {
-                    new Notification(chatName, { body: message.content });
+                    new Notification(chatName, { body: formatCallSystemMessage(message.content, t) });
                   }
                 });
               }
@@ -93,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, selectedChatId, 
                         {chatName}
                       </p>
                       <p className="mt-1 text-sm text-gray-500 truncate">
-                        {message.content}
+                        {formatCallSystemMessage(message.content, t)}
                       </p>
                     </div>
                   </div>

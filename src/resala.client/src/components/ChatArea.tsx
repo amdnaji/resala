@@ -691,7 +691,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                                 onClick={() => scrollToMessage(msg.parentMessageId)}
                                 className={`mb-1.5 p-2 rounded text-[13px] border-l-4 rtl:border-r-4 rtl:border-l-0 cursor-pointer hover:opacity-80 transition-opacity ${isMine ? 'bg-blue-700/40 border-blue-300' : 'bg-gray-50 border-gray-300'}`}>
                                 <div className={`font-semibold text-xs mb-0.5 ${isMine ? 'text-blue-100' : 'text-gray-600'}`}>{msg.parentMessageSenderName}</div>
-                                <div className={`truncate opacity-90 ${isMine ? 'text-white' : 'text-gray-600'}`}>{msg.parentMessageContent}</div>
+                                <div className={`truncate opacity-90 ${isMine ? 'text-white' : 'text-gray-600'}`}>{formatCallSystemMessage(msg.parentMessageContent, t)}</div>
                               </div>
                             )}
                             
@@ -838,7 +838,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                   <div className="mb-3 mx-1 p-3 bg-gray-50 rounded-lg border-l-4 rtl:border-r-4 rtl:border-l-0 border-blue-500 shadow-sm flex items-start justify-between">
                     <div className="flex-1 min-w-0 pr-4 rtl:pl-4 rtl:pr-0">
                       <div className="text-sm font-semibold text-blue-600 mb-0.5">{t('chat.replying_to')} {replyingTo.senderName || (replyingTo.senderId === user?.userId ? user?.displayName : otherParticipant?.displayName)}</div>
-                      <div className="text-sm text-gray-600 truncate">{replyingTo.content}</div>
+                      <div className="text-sm text-gray-600 truncate">{formatCallSystemMessage(replyingTo.content, t)}</div>
                     </div>
                     <button onClick={() => setReplyingTo(null)} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-200 rounded-full transition-colors shrink-0">
                       <X size={16} />
@@ -922,7 +922,7 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
               <div className={`p-3 rounded-xl inline-block max-w-full text-sm ${
                 activeMobileMenuMessage.senderId === user?.userId ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-800'
               }`}>
-                {activeMobileMenuMessage.content && <p className="break-words">{activeMobileMenuMessage.content}</p>}
+                {activeMobileMenuMessage.content && <p className="break-words">{formatCallSystemMessage(activeMobileMenuMessage.content, t)}</p>}
                 {activeMobileMenuMessage.attachments && activeMobileMenuMessage.attachments.length > 0 && (
                   <p className="text-xs mt-1 italic opacity-85">
                     📎 {activeMobileMenuMessage.attachments.length} {t('chat.shared_files')}
