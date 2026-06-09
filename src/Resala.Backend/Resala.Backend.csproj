@@ -16,6 +16,7 @@
     </PackageReference>
     <PackageReference Include="Novell.Directory.Ldap.NETStandard" Version="4.0.0" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="9.0.*" />
+    <PackageReference Include="SIPSorcery" Version="10.0.7" />
   </ItemGroup>
 
 </Project>

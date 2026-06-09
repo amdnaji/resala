@@ -29,7 +29,7 @@ export const SignalRProvider: React.FC<{ children: ReactNode }> = ({ children })
     }
 
     const newConnection = new signalR.HubConnectionBuilder()
-      .withUrl('https://localhost:5001/hubs/chat', {
+      .withUrl('/hubs/chat', {
         withCredentials: true
       })
       .withAutomaticReconnect([0, 2000, 10000, 30000]) // auto reconnect logic

@@ -318,5 +318,62 @@ namespace Resala.Backend.Hubs
                 createdAt = DateTime.UtcNow
             });
         }
+
+        public async Task StartCall(string chatId, string targetUserId, string callType = "AUDIO")
+        {
+            if (callType == "VIDEO")
+            {
+                return;
+            }
+
+            var callerId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(callerId) || string.IsNullOrWhiteSpace(targetUserId)) return;
+
+            var callerGuid = Guid.Parse(callerId);
+            var caller = await _context.Users.FindAsync(callerGuid);
+            var callerName = caller?.DisplayName ?? caller?.UserName ?? "Unknown";
+
+            await Clients.User(targetUserId).SendAsync("incomingcall", chatId, callerId, callerName, callType);
+        }
+
+        public async Task AcceptCall(string chatId, string callerUserId)
+        {
+            var receiverId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(receiverId) || string.IsNullOrWhiteSpace(callerUserId)) return;
+
+            await Clients.User(callerUserId).SendAsync("callaccepted", chatId, receiverId);
+        }
+
+        public async Task RejectCall(string chatId, string callerUserId, string reason)
+        {
+            var receiverId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(receiverId) || string.IsNullOrWhiteSpace(callerUserId)) return;
+
+            await Clients.User(callerUserId).SendAsync("callrejected", chatId, receiverId, reason);
+        }
+
+        public async Task EndCall(string chatId, string targetUserId)
+        {
+            var senderId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(senderId) || string.IsNullOrWhiteSpace(targetUserId)) return;
+
+            await Clients.User(targetUserId).SendAsync("callended", chatId, senderId);
+        }
+
+        public async Task SendSdp(string chatId, string targetUserId, string sdpType, string sdp)
+        {
+            var senderId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(senderId) || string.IsNullOrWhiteSpace(targetUserId)) return;
+
+            await Clients.User(targetUserId).SendAsync("receivesdp", chatId, senderId, sdpType, sdp);
+        }
+
+        public async Task SendIceCandidate(string chatId, string targetUserId, string candidate, string sdpMid, int? sdpMLineIndex)
+        {
+            var senderId = Context.UserIdentifier;
+            if (string.IsNullOrWhiteSpace(senderId) || string.IsNullOrWhiteSpace(targetUserId)) return;
+
+            await Clients.User(targetUserId).SendAsync("receiveicecandidate", chatId, senderId, candidate, sdpMid, sdpMLineIndex);
+        }
     }
 }

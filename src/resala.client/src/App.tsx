@@ -1,7 +1,9 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SignalRProvider } from './contexts/SignalRContext';
+import { CallProvider } from './contexts/CallContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { CallOverlay } from './components/CallOverlay';
 import { useTranslation } from 'react-i18next';
 import { useEffect } from 'react';
 import { getLanguageByCode } from './config/languages';
@@ -26,31 +28,34 @@ function App() {
   return (
     <AuthProvider>
       <SignalRProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
-            <Route path="/fake-inbox" element={<FakeInbox />} />
-            <Route 
-              path="/" 
-              element={
-                <ProtectedRoute>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
+        <CallProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
+              <Route path="/fake-inbox" element={<FakeInbox />} />
+              <Route 
+                path="/" 
+                element={
+                  <ProtectedRoute>
+                    <Dashboard />
+                  </ProtectedRoute>
+                } 
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+            <CallOverlay />
+            <Toaster 
+              position="top-center" 
+              toastOptions={{
+                duration: 4000,
+                className: 'rtl:text-right',
+              }} 
             />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-          <Toaster 
-            position="top-center" 
-            toastOptions={{
-              duration: 4000,
-              className: 'rtl:text-right',
-            }} 
-          />
-        </BrowserRouter>
+          </BrowserRouter>
+        </CallProvider>
       </SignalRProvider>
     </AuthProvider>
   );

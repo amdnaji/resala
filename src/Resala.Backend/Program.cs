@@ -39,6 +39,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Resala.Backend.Services.IStorageService, Resala.Backend.Services.LocalDiskStorageProvider>();
 builder.Services.AddScoped<Resala.Backend.Services.ILdapService, Resala.Backend.Services.LdapService>();
+builder.Services.AddHostedService<Resala.Backend.Services.StunHostedService>();
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
 
@@ -46,10 +47,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("AllowAll", policy =>
     {
-        policy.WithOrigins(
-            "http://localhost:5173", "http://127.0.0.1:5173",
-            "http://localhost:5174", "http://127.0.0.1:5174"
-        )
+        policy.SetIsOriginAllowed(origin => true)
               .AllowAnyMethod()
               .AllowAnyHeader()
               .AllowCredentials();

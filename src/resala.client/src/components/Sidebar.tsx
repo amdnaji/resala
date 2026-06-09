@@ -6,6 +6,7 @@ import api from '../services/api';
 import { useTranslation } from 'react-i18next';
 import { CreateGroupModal } from './CreateGroupModal';
 import { playNotificationSound } from '../utils/audio';
+import { formatCallSystemMessage } from '../utils/callHelper';
 import toast from 'react-hot-toast';
 
 interface Participant {
@@ -31,10 +32,11 @@ interface Chat {
 interface SidebarProps {
   onSelectChat: (chat: Chat) => void;
   selectedChatId?: string;
+  onOpenProfile?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, selectedChatId }) => {
-  const { user } = useAuth();
+export const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, selectedChatId, onOpenProfile }) => {
+  const { user, logout } = useAuth();
   const { t, i18n } = useTranslation();
   const { connection } = useSignalR();
   const [chats, setChats] = useState<Chat[]>([]);
@@ -68,11 +70,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, selectedChatId }
             // Show native desktop notification if tab is hidden
             if (document.visibilityState === 'hidden') {
               if (Notification.permission === 'granted') {
-                new Notification(chatName, { body: message.content });
+                new Notification(chatName, { body: formatCallSystemMessage(message.content, t) });
               } else if (Notification.permission !== 'denied') {
                 Notification.requestPermission().then(permission => {
                   if (permission === 'granted') {
-                    new Notification(chatName, { body: message.content });
+                    new Notification(chatName, { body: formatCallSystemMessage(message.content, t) });
                   }
                 });
               }
@@ -91,7 +93,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, selectedChatId }
                         {chatName}
                       </p>
                       <p className="mt-1 text-sm text-gray-500 truncate">
-                        {message.content}
+                        {formatCallSystemMessage(message.content, t)}
                       </p>
                     </div>
                   </div>
@@ -325,19 +327,47 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, selectedChatId }
 
   return (
 
-    <div className="w-80 border-r rtl:border-l rtl:border-r-0 border-gray-200 bg-white flex flex-col h-full shrink-0">
+    <div className="w-full border-r rtl:border-l rtl:border-r-0 border-gray-200 bg-white flex flex-col h-full shrink-0">
       {/* Header */}
       <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
-        <h2 className="text-xl font-bold text-gray-800">{t('sidebar.chats')}</h2>
-        <button 
-          onClick={() => {
-            setIsSearching(true);
-            loadAllUsers();
-          }}
-          className="p-2 text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
-        >
-          <Plus size={20} />
-        </button>
+        <div className="flex items-center space-x-3 rtl:space-x-reverse">
+          {/* User profile picture - visible ONLY on mobile since rail is hidden */}
+          {user && (
+            <div 
+              onClick={onOpenProfile}
+              className="md:hidden w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-teal-400 flex items-center justify-center text-xs font-bold shadow-md cursor-pointer relative overflow-hidden shrink-0"
+            >
+              {user.profilePictureUrl ? (
+                <img src={user.profilePictureUrl} alt={user.displayName} className="w-full h-full object-cover" />
+              ) : (
+                user.displayName?.charAt(0).toUpperCase()
+              )}
+            </div>
+          )}
+          <h2 className="text-xl font-bold text-gray-800">{t('sidebar.chats')}</h2>
+        </div>
+        
+        <div className="flex items-center space-x-1 rtl:space-x-reverse">
+          <button 
+            onClick={() => {
+              setIsSearching(true);
+              loadAllUsers();
+            }}
+            className="p-2 text-gray-600 hover:bg-gray-200 rounded-full transition-colors"
+            title={t('chat.start_conversation') || "New Chat"}
+          >
+            <Plus size={20} />
+          </button>
+          
+          {/* Logout button - visible ONLY on mobile inside sidebar header */}
+          <button 
+            onClick={logout}
+            className="md:hidden p-2 text-gray-500 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors"
+            title={t('nav.logout') || "Logout"}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-log-out"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
+          </button>
+        </div>
       </div>
 
       {/* Search Bar - Shown either when searching or inline */}
@@ -473,7 +503,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onSelectChat, selectedChatId }
                   </div>
                   <div className="flex justify-between items-center">
                     <p className={`text-xs truncate flex-1 ${chat.unreadCount > 0 ? 'text-gray-900 font-semibold' : 'text-gray-500'}`}>
-                      {chat.lastMessage ? chat.lastMessage.content : 'No messages yet...'}
+                      {chat.lastMessage ? formatCallSystemMessage(chat.lastMessage.content, t) : 'No messages yet...'}
                     </p>
                     {chat.unreadCount > 0 && (
                       <span className="ml-2 rtl:mr-2 rtl:ml-0 bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
