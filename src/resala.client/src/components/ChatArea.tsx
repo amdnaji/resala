@@ -612,7 +612,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                   >
                     <Phone size={20} />
                   </button>
-                  {/* 
                   <button 
                     onClick={() => startCall(chat.id, otherParticipant.userId, chatName, 'VIDEO')}
                     className="p-2 hover:bg-emerald-50 rounded-full transition-all duration-200 text-emerald-600 hover:text-emerald-700 active:scale-95 flex items-center justify-center"
@@ -620,7 +619,6 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                   >
                     <Video size={20} />
                   </button>
-                  */}
                 </>
               )}
               <button 
