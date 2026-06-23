@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
 import { useSignalR } from './SignalRContext';
-import { VideoBackgroundBlurrer } from '../utils/blurHelper';
+import { SelfieSegmentation } from '@mediapipe/selfie_segmentation';
 
 export type CallState = 'IDLE' | 'OUTGOING' | 'INCOMING' | 'CONNECTED' | 'DISCONNECTED' | 'BUSY';
 export type CallType = 'AUDIO' | 'VIDEO';
@@ -19,6 +19,8 @@ interface CallContextType {
   isScreenSharing: boolean;
   isBackgroundBlurred: boolean;
   isBlurLoading: boolean;
+  videoMode: 'normal' | 'blur' | 'bg';
+  setVideoEffectMode: (mode: 'normal' | 'blur' | 'bg') => Promise<void>;
   startCall: (chatId: string, targetUserId: string, targetUserName: string, type: CallType) => Promise<void>;
   acceptCall: () => Promise<void>;
   rejectCall: (reason?: string) => Promise<void>;
@@ -32,6 +34,15 @@ interface CallContextType {
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
+
+// Global States for MediaPipe Selfie Segmentation Video Effects
+let mode: 'normal' | 'blur' | 'bg' = 'normal';
+let selfieSegmentation: SelfieSegmentation | null = null;
+let processedStream: MediaStream | null = null;
+let originalRawVideoTrack: MediaStreamTrack | null = null;
+let renderLoopActive = false;
+let rawVideoElement: HTMLVideoElement | null = null;
+
 
 // Web Audio API Synthesizer Sound Generator
 class CallSoundEffects {
@@ -191,6 +202,7 @@ const sounds = new CallSoundEffects();
 
 export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const { connection, isConnected } = useSignalR();
+  const isRtl = document.documentElement.dir === 'rtl' || document.documentElement.lang === 'ar';
 
   // Call States
   const [callState, setCallState] = useState<CallState>('IDLE');
@@ -208,6 +220,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isBackgroundBlurred, setIsBackgroundBlurred] = useState(false);
   const [isBlurLoading, setIsBlurLoading] = useState(false);
+  const [videoMode, setVideoMode] = useState<'normal' | 'blur' | 'bg'>('normal');
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
 
@@ -215,7 +228,6 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const screenShareTrackRef = useRef<MediaStreamTrack | null>(null); // Active screen share track reference
-  const blurrerRef = useRef<VideoBackgroundBlurrer | null>(null);
   const callTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Ringing & Call Tracking References
@@ -255,7 +267,8 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const targetUserIdRef = useRef<string | null>(null);
   useEffect(() => {
-    targetUserIdRef.current = callState === 'OUTGOING' ? receiverId : callerId;
+    // Select correct target user based on whether we are the caller or callee
+    targetUserIdRef.current = isCallerRef.current ? receiverId : callerId;
   }, [callState, receiverId, callerId]);
 
   // Cleanup helper
@@ -272,9 +285,19 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       ringingTimeoutRef.current = null;
     }
 
-    if (blurrerRef.current) {
-      blurrerRef.current.stop();
-      blurrerRef.current = null;
+    renderLoopActive = false;
+    mode = 'normal';
+    selfieSegmentation = null;
+    processedStream = null;
+    originalRawVideoTrack = null;
+    setVideoMode('normal');
+
+    if (rawVideoElement) {
+      rawVideoElement.srcObject = null;
+      if (rawVideoElement.parentNode) {
+        rawVideoElement.parentNode.removeChild(rawVideoElement);
+      }
+      rawVideoElement = null;
     }
 
     if (localStreamRef.current) {
@@ -521,6 +544,21 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
       };
     }
+
+    // 7. If the caller already selected background blur/effects during dialing, hot-swap the track immediately
+    if (mode !== 'normal' && processedStream) {
+      const blurredTrack = processedStream.getVideoTracks()[0];
+      if (blurredTrack) {
+        const senders = pc.getSenders();
+        const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+        if (videoSender) {
+          console.log('[ResalaBlur] initWebRTCPipeline: Automatically hot-swapping track with active processed canvas track...');
+          await videoSender.replaceTrack(blurredTrack).catch(err => {
+            console.error('[ResalaBlur] Failed to auto replace track in pipeline:', err);
+          });
+        }
+      }
+    }
   };
 
   // Caller: Start call
@@ -727,69 +765,262 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
-  // Start / Stop Real-time Video Background Blur via Canvas Swapping
-  const toggleBackgroundBlur = async () => {
-    if (callState !== 'CONNECTED' || callType !== 'VIDEO') return;
+  // checkBrowserCapabilities: فحص إمكانية تشغيل الميزة البرمجية والرسومية على جهاز العميل
+  const checkBrowserCapabilities = (ctx: CanvasRenderingContext2D) => {
+    const supportsWasm = typeof WebAssembly === "object";
+    const supportsCanvasFilter = ctx.filter !== undefined;
+    const supportsGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 
-    if (isBackgroundBlurred) {
-      // STOP BACKGROUND BLUR
+    if (!supportsGetUserMedia) {
+      return { 
+        supported: false, 
+        reason: isRtl ? "متصفحك الحالي لا يدعم تقنيات البث المباشر والوصول إلى كاميرا الويب." : "Your browser does not support live streaming and camera access."
+      };
+    }
+    if (!supportsWasm) {
+      return { 
+        supported: false, 
+        reason: isRtl ? "المتصفح لا يدعم معالجة الـ (WebAssembly) المطلوبة لتشغيل الذكاء الاصطناعي." : "Your browser does not support WebAssembly required for local AI."
+      };
+    }
+    if (!supportsCanvasFilter) {
+      return { 
+        supported: false, 
+        reason: isRtl ? "المتصفح لا يدعم فلاتر الرسوميات الحديثة (Canvas Filter) اللازمة لعمل غبش وتضليل." : "Your browser does not support HTML5 Canvas graphics filters."
+      };
+    }
+
+    return { supported: true, reason: "" };
+  };
+
+  // setVideoEffectMode: حلقة تغيير وضعية المعالجة وتشغيل محرك التصفية عند الطلب
+  const setVideoEffectMode = async (newMode: 'normal' | 'blur' | 'bg') => {
+    if ((callState !== 'CONNECTED' && callState !== 'OUTGOING') || callType !== 'VIDEO') return;
+
+    const canvas = document.getElementById('blurCanvas') as HTMLCanvasElement;
+    if (!canvas) {
+      console.error('[ResalaBlur] Hidden canvas #blurCanvas not found in DOM!');
+      return;
+    }
+
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) {
+      console.error('[ResalaBlur] Failed to get 2D context for #blurCanvas');
+      return;
+    }
+
+    // فحص الأهلية البرمجية عند التفعيل
+    if (newMode !== 'normal') {
+      const capability = checkBrowserCapabilities(ctx);
+      if (!capability.supported) {
+        alert(isRtl 
+          ? `عذراً، لا يمكن تفعيل هذه الميزة في متصفحك الحالي.\n\nالسبب: ${capability.reason}\n\nينصح بشدة باستخدام Google Chrome أو Microsoft Edge للحصول على تجربة كاملة.`
+          : `Sorry, this feature is not supported in your current browser.\n\nReason: ${capability.reason}\n\nWe recommend using Google Chrome or Microsoft Edge.`
+        );
+        return; 
+      }
+    }
+
+    console.log(`[ResalaBlur] setVideoEffectMode called. Mode: ${newMode}`);
+    mode = newMode;
+    setVideoMode(newMode);
+    setIsBackgroundBlurred(newMode === 'blur');
+
+    if (newMode === 'normal') {
+      // TURN OFF VIDEO EFFECTS
+      console.log('[ResalaBlur] Reverting to Normal camera...');
       try {
-        if (blurrerRef.current) {
-          blurrerRef.current.stop();
-          blurrerRef.current = null;
+        // 1. Stop the render loop
+        renderLoopActive = false;
+        console.log('[ResalaBlur] Render loop stopped.');
+
+        // 2. Clear raw video element stream
+        if (rawVideoElement) {
+          rawVideoElement.srcObject = null;
         }
 
-        // Restore raw camera track on active RTCPeerConnection sender
-        if (localStreamRef.current) {
-          const rawVideoTrack = localStreamRef.current.getVideoTracks()[0];
-          if (peerConnectionRef.current && rawVideoTrack) {
-            const senders = peerConnectionRef.current.getSenders();
-            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
-              await videoSender.replaceTrack(rawVideoTrack);
-            }
+        // 3. Revert RTCPeerConnection video track back to the original raw video track
+        if (peerConnectionRef.current && originalRawVideoTrack) {
+          const senders = peerConnectionRef.current.getSenders();
+          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+          if (videoSender) {
+            console.log('[ResalaBlur] Reverting track back to original raw camera video track...');
+            await videoSender.replaceTrack(originalRawVideoTrack);
           }
-
-          // Restore local preview to raw stream
-          setLocalStream(localStreamRef.current);
         }
 
-        setIsBackgroundBlurred(false);
+        // 4. Restore original stream in local preview
+        if (localStreamRef.current && originalRawVideoTrack) {
+          const rawAudioTrack = localStreamRef.current.getAudioTracks()[0];
+          const restoredTracks = [originalRawVideoTrack];
+          if (rawAudioTrack) restoredTracks.push(rawAudioTrack);
+          setLocalStream(new MediaStream(restoredTracks));
+        }
+
+        // 5. Clear the canvas to prevent memory leaks
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
       } catch (err) {
-        console.error('Failed to disable background blur:', err);
+        console.error('[ResalaBlur] Failed to revert to normal video:', err);
       }
     } else {
-      // START BACKGROUND BLUR
+      // TURN ON/SWITCH TO BLUR OR BG EFFECT
       setIsBlurLoading(true);
+      console.log(`[ResalaBlur] Activating effect mode: ${newMode}...`);
+
       try {
-        if (localStreamRef.current) {
-          // Pass the pristine active raw stream to the blurrer
-          const blurrer = new VideoBackgroundBlurrer(localStreamRef.current);
-          await blurrer.initialize(); // Dynamically downloads WASM segmentation models from CDN
-          blurrerRef.current = blurrer;
+        // 1. Cache the original raw video track if not already done
+        if (localStreamRef.current && !originalRawVideoTrack) {
+          originalRawVideoTrack = localStreamRef.current.getVideoTracks()[0];
+          console.log('[ResalaBlur] Original raw video track cached:', originalRawVideoTrack?.label);
+        }
 
-          const blurredStream = await blurrer.start();
-          const blurredVideoTrack = blurredStream.getVideoTracks()[0];
+        // 2. Initialize hidden raw video element if not done yet
+        if (!rawVideoElement) {
+          rawVideoElement = document.createElement('video');
+          rawVideoElement.id = 'resalaRawVideo';
+          rawVideoElement.autoplay = true;
+          rawVideoElement.playsInline = true;
+          rawVideoElement.muted = true;
+          rawVideoElement.style.display = 'none';
+          document.body.appendChild(rawVideoElement);
+          console.log('[ResalaBlur] Hidden raw video element created in DOM.');
+        }
 
-          // Swap track on active RTCPeerConnection sender
-          if (peerConnectionRef.current && blurredVideoTrack) {
-            const senders = peerConnectionRef.current.getSenders();
-            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
-              await videoSender.replaceTrack(blurredVideoTrack);
+        // Feed original raw camera stream to the hidden video element
+        if (originalRawVideoTrack && rawVideoElement.srcObject === null) {
+          const rawStream = new MediaStream([originalRawVideoTrack]);
+          rawVideoElement.srcObject = rawStream;
+          await rawVideoElement.play().catch(err => console.error('[ResalaBlur] Failed to play rawVideoElement:', err));
+        } else if (localStreamRef.current && rawVideoElement.srcObject === null) {
+          const rawTracks = localStreamRef.current.getVideoTracks();
+          if (rawTracks.length > 0) {
+            const rawStream = new MediaStream([rawTracks[0]]);
+            rawVideoElement.srcObject = rawStream;
+            await rawVideoElement.play().catch(err => console.error('[ResalaBlur] Failed to play rawVideoElement fallback:', err));
+          }
+        }
+
+        // Fix canvas dimensions to match raw video element or fallback
+        if (rawVideoElement && rawVideoElement.videoWidth && rawVideoElement.videoHeight) {
+          canvas.width = rawVideoElement.videoWidth;
+          canvas.height = rawVideoElement.videoHeight;
+        } else {
+          canvas.width = 640;
+          canvas.height = 480;
+        }
+
+        // 3. Initialize SelfieSegmentation model using NPM import if not done
+        if (!selfieSegmentation) {
+          console.log('[ResalaBlur] Initializing local MediaPipe SelfieSegmentation model (NPM version)...');
+          selfieSegmentation = new SelfieSegmentation({
+            locateFile: (file) => `/selfie_segmentation/${file}` // Serves locally offline from public directory!
+          });
+
+          selfieSegmentation.setOptions({
+            modelSelection: 0 // General model selection for high shoulders/chair accuracy
+          });
+
+          // 4. onResults - canvas composition matching the proven working standalone code
+          selfieSegmentation.onResults((results: any) => {
+            if (mode === 'normal' || !canvas || !ctx) return;
+
+            ctx.save();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Draw the segmentation mask
+            ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
+
+            // 2. Draw the raw video ONLY where the mask is (the person)
+            ctx.globalCompositeOperation = 'source-in';
+            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+
+            // 3. Draw the background behind the person
+            ctx.globalCompositeOperation = 'destination-over';
+
+            if (mode === 'blur') {
+              ctx.filter = 'blur(20px)';
+              ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
+            }
+            else if (mode === 'bg') {
+              ctx.filter = 'none';
+              const bgImg = document.getElementById('bgImg') as HTMLImageElement;
+              if (bgImg) {
+                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
+              } else {
+                ctx.fillStyle = '#1e1e24';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+              }
+            }
+
+            ctx.restore();
+          });
+        }
+
+        // 5. Start requestAnimationFrame render loop using rawVideoElement
+        if (!renderLoopActive) {
+          renderLoopActive = true;
+          console.log('[ResalaBlur] Starting requestAnimationFrame render loop...');
+
+          const processFrame = async () => {
+            if (!renderLoopActive) return;
+            if (mode !== 'normal' && selfieSegmentation && rawVideoElement) {
+              try {
+                await selfieSegmentation.send({ image: rawVideoElement });
+              } catch (e) {
+                console.error('[ResalaBlur] Error in segmentation frame:', e);
+              }
+            }
+            if (renderLoopActive) {
+              requestAnimationFrame(processFrame);
+            }
+          };
+
+          requestAnimationFrame(processFrame);
+        }
+
+        // 6. Capture the stream once globally if not already captured
+        if (!processedStream) {
+          processedStream = (canvas as any).captureStream(30);
+          console.log('[ResalaBlur] Canvas stream captured once globally.');
+        }
+
+        // Assemble unified stream with canvas track + raw audio track
+        const rawAudioTrack = localStreamRef.current?.getAudioTracks()[0];
+        const combinedTracks = [...processedStream!.getVideoTracks()];
+        if (rawAudioTrack) combinedTracks.push(rawAudioTrack);
+        const finalStream = new MediaStream(combinedTracks);
+
+        // 6. Safe replaceTrack on RTCPeerConnection checking references
+        if (peerConnectionRef.current) {
+          const senders = peerConnectionRef.current.getSenders();
+          const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+          if (videoSender) {
+            const blurredTrack = finalStream.getVideoTracks()[0];
+            if (blurredTrack) {
+              console.log('[ResalaBlur] Swapping track with processed canvas track via replaceTrack...');
+              await videoSender.replaceTrack(blurredTrack);
             }
           }
-
-          // Update local preview to show blurred stream
-          setLocalStream(blurredStream);
-          setIsBackgroundBlurred(true);
         }
+
+        // 7. Update React state for local preview
+        setLocalStream(finalStream);
+        console.log(`[ResalaBlur] Video effect ${newMode} enabled successfully!`);
       } catch (err) {
-        console.error('Failed to enable background blur:', err);
+        console.error('[ResalaBlur] Failed to enable video effect:', err);
+        mode = 'normal';
+        setVideoMode('normal');
+        setIsBackgroundBlurred(false);
       } finally {
         setIsBlurLoading(false);
       }
     }
+  };
+
+  // Backward compatibility toggle mapping
+  const toggleBackgroundBlur = async () => {
+    const nextMode = videoMode === 'blur' ? 'normal' : 'blur';
+    await setVideoEffectMode(nextMode);
   };
 
   // Cleanup when unmounting
@@ -798,6 +1029,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       cleanupCall();
     };
   }, []);
+
 
   return (
     <CallContext.Provider
@@ -815,6 +1047,8 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         isScreenSharing,
         isBackgroundBlurred,
         isBlurLoading,
+        videoMode,
+        setVideoEffectMode,
         startCall,
         acceptCall,
         rejectCall,

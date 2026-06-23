@@ -13,6 +13,7 @@ import { Dashboard } from './pages/Dashboard';
 import { ForgotPassword } from './pages/ForgotPassword';
 import { ResetPassword } from './pages/ResetPassword';
 import { FakeInbox } from './pages/FakeInbox';
+import { BlurTest } from './pages/BlurTest';
 import { Toaster } from 'react-hot-toast';
 
 function App() {
@@ -36,6 +37,7 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPassword />} />
               <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/fake-inbox" element={<FakeInbox />} />
+              <Route path="/blur-test" element={<BlurTest />} />
               <Route 
                 path="/" 
                 element={

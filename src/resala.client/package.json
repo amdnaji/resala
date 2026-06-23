@@ -10,6 +10,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/selfie_segmentation": "^0.1.1675465747",
     "@microsoft/signalr": "^10.0.0",
     "axios": "^1.13.6",
     "clsx": "^2.1.1",
