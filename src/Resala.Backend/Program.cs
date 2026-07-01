@@ -40,6 +40,7 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<Resala.Backend.Services.IStorageService, Resala.Backend.Services.LocalDiskStorageProvider>();
 builder.Services.AddScoped<Resala.Backend.Services.ILdapService, Resala.Backend.Services.LdapService>();
 builder.Services.AddHostedService<Resala.Backend.Services.StunHostedService>();
+builder.Services.AddSingleton<Resala.Backend.Services.ICallSessionTracker, Resala.Backend.Services.InMemoryCallSessionTracker>();
 builder.Services.AddSignalR();
 builder.Services.AddControllers();
 

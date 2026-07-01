@@ -21,11 +21,19 @@ export const CallOverlay: React.FC = () => {
     acceptCall,
     rejectCall,
     endCall,
+    proceedToCall,
+    cancelPreCall,
     toggleMute,
     toggleVideo,
     toggleScreenShare,
     localStream,
-    remoteStream
+    remoteStream,
+    videoDevices,
+    audioDevices,
+    selectedVideoDeviceId,
+    selectedAudioDeviceId,
+    changeVideoDevice,
+    changeAudioDevice
   } = useCall();
 
   const { i18n } = useTranslation();
@@ -116,7 +124,7 @@ export const CallOverlay: React.FC = () => {
       {callType === 'VIDEO' && callState !== 'INCOMING' ? (
         <div className="w-full max-w-4xl h-[70vh] min-h-[480px] rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl relative overflow-hidden transition-all duration-500 animate-scaleUp flex items-center justify-center">
           
-          {/* Main Remote Video Stream or Centered Pulse Placeholder */}
+          {/* Main Remote Video Stream or Centered Pulse Placeholder or Pre-Call Setup Lobby */}
           {callState === 'CONNECTED' && hasRemoteVideo ? (
             <video
               ref={remoteVideoRef}
@@ -124,6 +132,61 @@ export const CallOverlay: React.FC = () => {
               playsInline
               className="w-full h-full object-cover z-0 absolute inset-0 bg-slate-950"
             />
+          ) : callState === 'PRE_CALL' ? (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/20 pointer-events-none p-6 text-center">
+              <div className="bg-slate-950/85 border border-white/10 px-6 py-5 rounded-2xl backdrop-blur-md shadow-2xl max-w-sm pointer-events-auto">
+                <Sparkles className="text-amber-400 mx-auto mb-2 animate-bounce" size={28} />
+                <h3 className="text-sm font-bold text-white mb-1">
+                  {isRtl ? 'معاينة ما قبل الاتصال' : 'Pre-call Setup Lobby'}
+                </h3>
+                <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
+                  {isRtl 
+                    ? 'اختر وضع الكاميرا والأجهزة وتأكد من مظهرك وخلفيتك قبل بدء الاتصال بالضغط على زر الهاتف بالأسفل.'
+                    : 'Configure your effects & devices and verify your background before placing the call by clicking the green button below.'}
+                </p>
+
+                {/* Device selectors */}
+                <div className="flex flex-col gap-3 text-right text-xs text-slate-300 w-full border-t border-white/5 pt-3.5 mt-2">
+                  {/* Microphone selector */}
+                  <div className="flex flex-col gap-1 text-left">
+                    <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                      <Mic size={10} className="text-slate-400" />
+                      <span>{isRtl ? 'الميكروفون (مدخل الصوت)' : 'Microphone (Audio Input)'}</span>
+                    </label>
+                    <select
+                      value={selectedAudioDeviceId || ''}
+                      onChange={(e) => changeAudioDevice(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                    >
+                      {audioDevices.map((device) => (
+                        <option key={device.deviceId} value={device.deviceId}>
+                          {device.label || `${isRtl ? 'ميكروفون' : 'Microphone'} ${device.deviceId.slice(0, 4)}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Camera selector */}
+                  <div className="flex flex-col gap-1 text-left">
+                    <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1">
+                      <Video size={10} className="text-slate-400" />
+                      <span>{isRtl ? 'الكاميرا (مدخل الفيديو)' : 'Camera (Video Input)'}</span>
+                    </label>
+                    <select
+                      value={selectedVideoDeviceId || ''}
+                      onChange={(e) => changeVideoDevice(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                    >
+                      {videoDevices.map((device) => (
+                        <option key={device.deviceId} value={device.deviceId}>
+                          {device.label || `${isRtl ? 'كاميرا' : 'Camera'} ${device.deviceId.slice(0, 4)}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
           ) : (
             // Calling / Connecting state inside the main canvas
             <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950/90 relative z-0">
@@ -162,9 +225,17 @@ export const CallOverlay: React.FC = () => {
             </span>
           </div>
 
-          {/* Floating Picture-in-Picture Local Preview (Top Right of Card) */}
-          <div className="absolute top-4 right-4 sm:top-6 sm:right-6 z-20">
-            <div className="w-24 h-32 sm:w-36 sm:h-48 rounded-xl border border-white/10 shadow-2xl overflow-hidden bg-slate-900/80 backdrop-blur-md relative transition-transform duration-300 hover:scale-[1.03]">
+          {/* Floating Picture-in-Picture Local Preview (Top Right) or Full Background Preview during PRE_CALL */}
+          <div className={
+            callState === 'PRE_CALL'
+              ? "absolute inset-0 w-full h-full z-0 overflow-hidden"
+              : "absolute top-4 right-4 sm:top-6 sm:right-6 z-20"
+          }>
+            <div className={
+              callState === 'PRE_CALL'
+                ? "w-full h-full relative"
+                : "w-24 h-32 sm:w-36 sm:h-48 rounded-xl border border-white/10 shadow-2xl overflow-hidden bg-slate-900/80 backdrop-blur-md relative transition-transform duration-300 hover:scale-[1.03]"
+            }>
               {/* Local video element persistently mounted in DOM to prevent document.getElementById('localVideo') null errors */}
               <video
                 id="localVideo"
@@ -183,7 +254,7 @@ export const CallOverlay: React.FC = () => {
                   localStream && !isVideoMuted ? 'hidden' : 'flex'
                 }`}
               >
-                <VideoOff size={20} className="text-slate-500 animate-pulse mb-1" />
+                <VideoOff size={callState === 'PRE_CALL' ? 36 : 20} className="text-slate-500 animate-pulse mb-1" />
                 <span className="text-[8px] uppercase font-bold tracking-wider opacity-60">
                   {isRtl ? 'كاميرتك مغلقة' : 'Cam Muted'}
                 </span>
@@ -228,25 +299,27 @@ export const CallOverlay: React.FC = () => {
               </button>
 
               {/* MONITOR SCREEN SHARE BUTTON */}
-              <button
-                onClick={toggleScreenShare}
-                disabled={callState !== 'CONNECTED'}
-                className={`p-3 rounded-xl border transition-all duration-300 ${
-                  isScreenSharing
-                    ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed'
-                }`}
-                title={isScreenSharing ? 'Stop Share' : 'Share Screen'}
-              >
-                {isScreenSharing ? <MonitorOff size={18} /> : <Monitor size={18} />}
-              </button>
+              {callState !== 'PRE_CALL' && (
+                <button
+                  onClick={toggleScreenShare}
+                  disabled={callState !== 'CONNECTED'}
+                  className={`p-3 rounded-xl border transition-all duration-300 ${
+                    isScreenSharing
+                      ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
+                      : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed'
+                  }`}
+                  title={isScreenSharing ? 'Stop Share' : 'Share Screen'}
+                >
+                  {isScreenSharing ? <MonitorOff size={18} /> : <Monitor size={18} />}
+                </button>
+              )}
 
               {/* VIDEO EFFECTS POPUP MENU */}
               <div className="relative">
                 <button
                   id="toggleBlurBtn"
                   onClick={() => setShowEffectsMenu(!showEffectsMenu)}
-                  disabled={(callState !== 'CONNECTED' && callState !== 'OUTGOING') || isVideoMuted}
+                  disabled={(callState !== 'CONNECTED' && callState !== 'OUTGOING' && callState !== 'PRE_CALL') || isVideoMuted}
                   className={`p-3 rounded-xl border transition-all duration-300 ${
                     videoMode !== 'normal'
                       ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
@@ -320,14 +393,36 @@ export const CallOverlay: React.FC = () => {
               </div>
 
 
-              {/* END CALL BUTTON */}
-              <button
-                onClick={endCall}
-                className="p-3.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-lg transition-all duration-300 transform active:scale-95 flex items-center justify-center"
-                title={isRtl ? 'إنهاء المكالمة' : 'End Call'}
-              >
-                <PhoneOff size={18} />
-              </button>
+              {/* END CALL / PRE-CALL ACTION BUTTONS */}
+              {callState === 'PRE_CALL' ? (
+                <>
+                  {/* CANCEL LOBBY BUTTON */}
+                  <button
+                    onClick={cancelPreCall}
+                    className="p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl border border-slate-700 transition-all duration-300 transform active:scale-95 flex items-center justify-center"
+                    title={isRtl ? 'إلغاء' : 'Cancel'}
+                  >
+                    <PhoneOff size={18} className="text-rose-400" />
+                  </button>
+
+                  {/* PROCEED / START CALL BUTTON */}
+                  <button
+                    onClick={proceedToCall}
+                    className="p-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl border border-emerald-500/30 shadow-lg transition-all duration-300 transform active:scale-95 flex items-center justify-center animate-pulse"
+                    title={isRtl ? 'بدء الاتصال' : 'Start Call'}
+                  >
+                    <Phone size={18} />
+                  </button>
+                </>
+              ) : (
+                <button
+                  onClick={endCall}
+                  className="p-3.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-lg transition-all duration-300 transform active:scale-95 flex items-center justify-center"
+                  title={isRtl ? 'إنهاء المكالمة' : 'End Call'}
+                >
+                  <PhoneOff size={18} />
+                </button>
+              )}
 
             </div>
           </div>

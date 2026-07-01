@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useRef, type Rea
 import { useSignalR } from './SignalRContext';
 import { SelfieSegmentation } from '@mediapipe/selfie_segmentation';
 
-export type CallState = 'IDLE' | 'OUTGOING' | 'INCOMING' | 'CONNECTED' | 'DISCONNECTED' | 'BUSY';
+export type CallState = 'IDLE' | 'PRE_CALL' | 'OUTGOING' | 'INCOMING' | 'CONNECTED' | 'DISCONNECTED' | 'BUSY';
 export type CallType = 'AUDIO' | 'VIDEO';
 
 interface CallContextType {
@@ -25,12 +25,20 @@ interface CallContextType {
   acceptCall: () => Promise<void>;
   rejectCall: (reason?: string) => Promise<void>;
   endCall: () => Promise<void>;
+  proceedToCall: () => Promise<void>;
+  cancelPreCall: () => void;
   toggleMute: () => void;
   toggleVideo: () => void;
   toggleScreenShare: () => Promise<void>;
   toggleBackgroundBlur: () => Promise<void>;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
+  videoDevices: MediaDeviceInfo[];
+  audioDevices: MediaDeviceInfo[];
+  selectedVideoDeviceId: string | null;
+  selectedAudioDeviceId: string | null;
+  changeVideoDevice: (deviceId: string) => Promise<void>;
+  changeAudioDevice: (deviceId: string) => Promise<void>;
 }
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
@@ -47,7 +55,17 @@ let rawVideoElement: HTMLVideoElement | null = null;
 // Web Audio API Synthesizer Sound Generator
 class CallSoundEffects {
   private ctx: AudioContext | null = null;
-  private intervalId: any = null;
+  private intervalIds: any[] = [];
+  private activeSoundType: 'dialing' | 'ringing' | 'busy' | null = null;
+
+  constructor() {
+    this.playDialing = this.playDialing.bind(this);
+    this.playRinging = this.playRinging.bind(this);
+    this.playConnected = this.playConnected.bind(this);
+    this.playDisconnected = this.playDisconnected.bind(this);
+    this.playBusy = this.playBusy.bind(this);
+    this.stop = this.stop.bind(this);
+  }
 
   private initCtx() {
     if (!this.ctx) {
@@ -60,8 +78,10 @@ class CallSoundEffects {
 
   playDialing() {
     this.stop();
+    this.activeSoundType = 'dialing';
     this.initCtx();
     const playBeep = () => {
+      if (this.activeSoundType !== 'dialing') return;
       if (!this.ctx) return;
       const osc1 = this.ctx.createOscillator();
       const osc2 = this.ctx.createOscillator();
@@ -87,13 +107,16 @@ class CallSoundEffects {
     };
 
     playBeep();
-    this.intervalId = setInterval(playBeep, 3000);
+    const id = setInterval(playBeep, 3000);
+    this.intervalIds.push(id);
   }
 
   playRinging() {
     this.stop();
+    this.activeSoundType = 'ringing';
     this.initCtx();
     const playRing = () => {
+      if (this.activeSoundType !== 'ringing') return;
       if (!this.ctx) return;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -118,7 +141,8 @@ class CallSoundEffects {
     };
 
     playRing();
-    this.intervalId = setInterval(playRing, 3500);
+    const id = setInterval(playRing, 3500);
+    this.intervalIds.push(id);
   }
 
   playConnected() {
@@ -166,8 +190,10 @@ class CallSoundEffects {
 
   playBusy() {
     this.stop();
+    this.activeSoundType = 'busy';
     this.initCtx();
     const playBusyBeep = () => {
+      if (this.activeSoundType !== 'busy') return;
       if (!this.ctx) return;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -187,14 +213,14 @@ class CallSoundEffects {
     };
 
     playBusyBeep();
-    this.intervalId = setInterval(playBusyBeep, 600);
+    const id = setInterval(playBusyBeep, 600);
+    this.intervalIds.push(id);
   }
 
   stop() {
-    if (this.intervalId) {
-      clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
+    this.activeSoundType = null;
+    this.intervalIds.forEach(id => clearInterval(id));
+    this.intervalIds = [];
   }
 }
 
@@ -223,6 +249,12 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const [videoMode, setVideoMode] = useState<'normal' | 'blur' | 'bg'>('normal');
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+
+  // Hardware Devices
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [audioDevices, setAudioDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedVideoDeviceId, setSelectedVideoDeviceId] = useState<string | null>(null);
+  const [selectedAudioDeviceId, setSelectedAudioDeviceId] = useState<string | null>(null);
 
   // WebRTC References
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
@@ -492,6 +524,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       stream = await navigator.mediaDevices.getUserMedia(constraints);
       localStreamRef.current = stream;
       setLocalStream(stream);
+      await initializeDevices(stream);
     }
 
     // 2. Setup RTCPeerConnection (Local STUN server as primary, Google STUN as fallback)
@@ -561,20 +594,163 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  // Helper to query available media devices
+  const updateDeviceList = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videos = devices.filter(d => d.kind === 'videoinput');
+      const audios = devices.filter(d => d.kind === 'audioinput');
+      setVideoDevices(videos);
+      setAudioDevices(audios);
+      console.log('[CallContext] Updated device list. Video devices:', videos.length, 'Audio devices:', audios.length);
+    } catch (err) {
+      console.error('[CallContext] Failed to enumerate devices:', err);
+    }
+  };
+
+  // Helper to initialize active device selections based on warmed up stream
+  const initializeDevices = async (stream: MediaStream) => {
+    await updateDeviceList();
+    
+    const activeVideoTrack = stream.getVideoTracks()[0];
+    const activeAudioTrack = stream.getAudioTracks()[0];
+    
+    if (activeVideoTrack) {
+      const settings = activeVideoTrack.getSettings();
+      if (settings.deviceId) {
+        setSelectedVideoDeviceId(settings.deviceId);
+        console.log('[CallContext] Selected video device initialized to:', settings.deviceId);
+      }
+    }
+    if (activeAudioTrack) {
+      const settings = activeAudioTrack.getSettings();
+      if (settings.deviceId) {
+        setSelectedAudioDeviceId(settings.deviceId);
+        console.log('[CallContext] Selected audio device initialized to:', settings.deviceId);
+      }
+    }
+  };
+
+  // Handler to switch video input device dynamically
+  const changeVideoDevice = async (deviceId: string) => {
+    if (!deviceId) return;
+    setSelectedVideoDeviceId(deviceId);
+
+    if (localStreamRef.current) {
+      console.log('[CallContext] Changing video device to:', deviceId);
+      
+      // Stop existing video tracks
+      const currentVideoTracks = localStreamRef.current.getVideoTracks();
+      currentVideoTracks.forEach(t => t.stop());
+
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: deviceId }, width: 1280, height: 720, frameRate: 30 },
+          audio: false
+        });
+        const newVideoTrack = newStream.getVideoTracks()[0];
+
+        if (newVideoTrack) {
+          // If we are in blurred/bg mode, update originalRawVideoTrack and feed it to the raw video element
+          if (mode !== 'normal') {
+            originalRawVideoTrack = newVideoTrack;
+            if (rawVideoElement) {
+              rawVideoElement.srcObject = new MediaStream([newVideoTrack]);
+              await rawVideoElement.play().catch(err => {
+                console.error('[CallContext] Failed to restart rawVideoElement for new camera device:', err);
+              });
+            }
+          } else {
+            // Normal mode: construct a new combined stream for local rendering
+            const audioTrack = localStreamRef.current.getAudioTracks()[0];
+            const tracks = [newVideoTrack];
+            if (audioTrack) tracks.push(audioTrack);
+            
+            const updatedStream = new MediaStream(tracks);
+            localStreamRef.current = updatedStream;
+            setLocalStream(updatedStream);
+          }
+
+          // If we have an active WebRTC peer connection, hot-swap the track
+          if (peerConnectionRef.current) {
+            const senders = peerConnectionRef.current.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+              const trackToUse = mode !== 'normal' && processedStream
+                ? processedStream.getVideoTracks()[0]
+                : newVideoTrack;
+              
+              if (trackToUse) {
+                console.log('[CallContext] Hot-swapping WebRTC video sender track with new device track...');
+                await videoSender.replaceTrack(trackToUse);
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[CallContext] Failed to change video device:', err);
+      }
+    }
+  };
+
+  // Handler to switch audio input device dynamically
+  const changeAudioDevice = async (deviceId: string) => {
+    if (!deviceId) return;
+    setSelectedAudioDeviceId(deviceId);
+
+    if (localStreamRef.current) {
+      console.log('[CallContext] Changing audio device to:', deviceId);
+
+      // Stop existing audio tracks
+      const currentAudioTracks = localStreamRef.current.getAudioTracks();
+      currentAudioTracks.forEach(t => t.stop());
+
+      try {
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: false,
+          audio: { deviceId: { exact: deviceId } }
+        });
+        const newAudioTrack = newStream.getAudioTracks()[0];
+
+        if (newAudioTrack) {
+          // Construct a new combined stream for local rendering
+          const videoTrack = localStreamRef.current.getVideoTracks()[0];
+          const tracks = [newAudioTrack];
+          if (videoTrack) tracks.push(videoTrack);
+
+          const updatedStream = new MediaStream(tracks);
+          localStreamRef.current = updatedStream;
+          setLocalStream(updatedStream);
+
+          // If we have an active WebRTC peer connection, hot-swap the track
+          if (peerConnectionRef.current) {
+            const senders = peerConnectionRef.current.getSenders();
+            const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+            if (audioSender) {
+              console.log('[CallContext] Hot-swapping WebRTC audio sender track with new device track...');
+              await audioSender.replaceTrack(newAudioTrack);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('[CallContext] Failed to change audio device:', err);
+      }
+    }
+  };
+
   // Caller: Start call
   const startCall = async (cId: string, targetUserId: string, targetUserName: string, type: CallType) => {
     if (!connection || callState !== 'IDLE') return;
 
     isCallerRef.current = true;
     setCallType(type);
-    setCallState('OUTGOING');
     setChatId(cId);
     setReceiverId(targetUserId);
     setReceiverName(targetUserName);
-    sounds.playDialing();
 
-    // Warm up camera immediately for video call
+    // Warm up camera immediately for video call, but enter PRE_CALL lobby setup first
     if (type === 'VIDEO') {
+      setCallState('PRE_CALL');
       try {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
@@ -582,12 +758,37 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         });
         localStreamRef.current = stream;
         setLocalStream(stream);
-
-        // Pre-warmed stream setup complete
+        await initializeDevices(stream);
       } catch (err) {
-        console.error("Failed to warm up camera on startCall:", err);
+        console.error("Failed to warm up camera on startCall PRE_CALL:", err);
+      }
+    } else {
+      // Audio calls dial immediately
+      setCallState('OUTGOING');
+      sounds.playDialing();
+
+      // Ringing timeout (45 seconds)
+      ringingTimeoutRef.current = setTimeout(() => {
+        console.log('Call ringing timed out (no answer).');
+        endCall();
+      }, 45000);
+
+      try {
+        await connection.invoke('StartCall', cId, targetUserId, type);
+      } catch (err) {
+        console.error('SignalR start call failed:', err);
+        setCallState('IDLE');
+        cleanupCall();
       }
     }
+  };
+
+  // Proceed to place the video call after user is satisfied in pre-call lobby
+  const proceedToCall = async () => {
+    if (callState !== 'PRE_CALL' || !chatId || !receiverId) return;
+
+    setCallState('OUTGOING');
+    sounds.playDialing();
 
     // Ringing timeout (45 seconds)
     ringingTimeoutRef.current = setTimeout(() => {
@@ -596,12 +797,20 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }, 45000);
 
     try {
-      await connection.invoke('StartCall', cId, targetUserId, type);
+      if (connection) {
+        await connection.invoke('StartCall', chatId, receiverId, 'VIDEO');
+      }
     } catch (err) {
-      console.error('SignalR start call failed:', err);
+      console.error('SignalR start call from pre-call lobby failed:', err);
       setCallState('IDLE');
       cleanupCall();
     }
+  };
+
+  // Cancel call from pre-call lobby
+  const cancelPreCall = () => {
+    setCallState('IDLE');
+    cleanupCall();
   };
 
   // Callee: Accept call (Race-condition-free setup)
@@ -795,7 +1004,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   // setVideoEffectMode: حلقة تغيير وضعية المعالجة وتشغيل محرك التصفية عند الطلب
   const setVideoEffectMode = async (newMode: 'normal' | 'blur' | 'bg') => {
-    if ((callState !== 'CONNECTED' && callState !== 'OUTGOING') || callType !== 'VIDEO') return;
+    if ((callState !== 'CONNECTED' && callState !== 'OUTGOING' && callState !== 'PRE_CALL') || callType !== 'VIDEO') return;
 
     const canvas = document.getElementById('blurCanvas') as HTMLCanvasElement;
     if (!canvas) {
@@ -1053,12 +1262,20 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         acceptCall,
         rejectCall,
         endCall,
+        proceedToCall,
+        cancelPreCall,
         toggleMute,
         toggleVideo,
         toggleScreenShare,
         toggleBackgroundBlur,
         localStream,
-        remoteStream
+        remoteStream,
+        videoDevices,
+        audioDevices,
+        selectedVideoDeviceId,
+        selectedAudioDeviceId,
+        changeVideoDevice,
+        changeAudioDevice
       }}
     >
       {children}

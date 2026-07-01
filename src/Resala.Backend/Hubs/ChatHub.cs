@@ -16,12 +16,14 @@ namespace Resala.Backend.Hubs
     public class ChatHub : Hub
     {
         private readonly AppDbContext _context;
+        private readonly Services.ICallSessionTracker _callTracker;
         // Map UserId string -> HashSet of ConnectionIds (handles multiple tabs)
         public static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> UserConnections = new();
 
-        public ChatHub(AppDbContext context)
+        public ChatHub(AppDbContext context, Services.ICallSessionTracker callTracker)
         {
             _context = context;
+            _callTracker = callTracker;
         }
 
         public override async Task OnConnectedAsync()
@@ -47,6 +49,14 @@ namespace Resala.Backend.Hubs
                 // Notify others user is online (using both casings just in case)
                 await Clients.Others.SendAsync("UserStatusChanged", userIdStr, true, DateTime.UtcNow);
                 await Clients.Others.SendAsync("userstatuschanged", userIdStr, true, DateTime.UtcNow);
+
+                // Check if there is an active call pending for the connecting user
+                var pendingCall = await _callTracker.GetSessionForReceiverAsync(userIdStr);
+                if (pendingCall != null)
+                {
+                    // Notify the newly connected client immediately of the incoming call
+                    await Clients.Caller.SendAsync("incomingcall", pendingCall.ChatId, pendingCall.CallerId, pendingCall.CallerName, pendingCall.CallType);
+                }
             }
             await base.OnConnectedAsync();
         }
@@ -328,6 +338,9 @@ namespace Resala.Backend.Hubs
             var caller = await _context.Users.FindAsync(callerGuid);
             var callerName = caller?.DisplayName ?? caller?.UserName ?? "Unknown";
 
+            // Track call session
+            await _callTracker.AddSessionAsync(chatId, callerId, callerName, targetUserId, callType);
+
             await Clients.User(targetUserId).SendAsync("incomingcall", chatId, callerId, callerName, callType);
         }
 
@@ -335,6 +348,9 @@ namespace Resala.Backend.Hubs
         {
             var receiverId = Context.UserIdentifier;
             if (string.IsNullOrWhiteSpace(receiverId) || string.IsNullOrWhiteSpace(callerUserId)) return;
+
+            // Remove call session as connection is established
+            await _callTracker.RemoveSessionAsync(chatId);
 
             await Clients.User(callerUserId).SendAsync("callaccepted", chatId, receiverId);
         }
@@ -344,6 +360,9 @@ namespace Resala.Backend.Hubs
             var receiverId = Context.UserIdentifier;
             if (string.IsNullOrWhiteSpace(receiverId) || string.IsNullOrWhiteSpace(callerUserId)) return;
 
+            // Remove call session on rejection
+            await _callTracker.RemoveSessionAsync(chatId);
+
             await Clients.User(callerUserId).SendAsync("callrejected", chatId, receiverId, reason);
         }
 
@@ -351,6 +370,9 @@ namespace Resala.Backend.Hubs
         {
             var senderId = Context.UserIdentifier;
             if (string.IsNullOrWhiteSpace(senderId) || string.IsNullOrWhiteSpace(targetUserId)) return;
+
+            // Remove call session on termination
+            await _callTracker.RemoveSessionAsync(chatId);
 
             await Clients.User(targetUserId).SendAsync("callended", chatId, senderId);
         }
