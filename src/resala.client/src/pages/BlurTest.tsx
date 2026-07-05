@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { SelfieSegmentation } from '@mediapipe/selfie_segmentation';
+import { WebGLRenderer } from '../utils/WebGLRenderer';
+import { SegmentationEngine } from '../utils/SegmentationEngine';
 import { 
   Camera, 
   Video, 
@@ -33,9 +34,10 @@ export const BlurTest: React.FC = () => {
 
   // References for processing loop
   const streamRef = useRef<MediaStream | null>(null);
-  const modelRef = useRef<SelfieSegmentation | null>(null);
+  const segmentationEngineRef = useRef<SegmentationEngine | null>(null);
   const renderLoopActiveRef = useRef<boolean>(false);
   const currentEffectModeRef = useRef<'normal' | 'blur' | 'bg'>('normal');
+  const webglRendererRef = useRef<WebGLRenderer | null>(null);
 
   // FPS Counter variables
   const frameCountRef = useRef<number>(0);
@@ -113,10 +115,11 @@ export const BlurTest: React.FC = () => {
         // Wait for video metadata to load so dimensions are correct
         videoRef.current.onloadedmetadata = () => {
           if (videoRef.current) {
-            videoRef.current.play().catch(console.error);
-            setIsCameraActive(true);
-            // Initialize model & start processing
-            initModelAndLoop();
+            videoRef.current.play().then(() => {
+              setIsCameraActive(true);
+              // Initialize model & start processing
+              initModelAndLoop();
+            }).catch(console.error);
           }
         };
       }
@@ -140,11 +143,14 @@ export const BlurTest: React.FC = () => {
       videoRef.current.srcObject = null;
     }
 
-    // Clear output canvas
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Clean up WebGL processor and release resources
+    if (webglRendererRef.current) {
+      webglRendererRef.current.destroy();
+      webglRendererRef.current = null;
+    }
+    if (segmentationEngineRef.current) {
+      segmentationEngineRef.current.destroy();
+      segmentationEngineRef.current = null;
     }
 
     setIsCameraActive(false);
@@ -158,22 +164,19 @@ export const BlurTest: React.FC = () => {
 
     setModelStatus('loading');
     try {
-      // Initialize SelfieSegmentation from NPM with offline locateFile path
-      const segmentation = new SelfieSegmentation({
-        locateFile: (file) => `/selfie_segmentation/${file}`
-      });
-
-      segmentation.setOptions({
-        modelSelection: 0 // General model
-      });
-
-      // Define drawing callback
-      segmentation.onResults((results: any) => {
-        drawResults(results);
-      });
-
-      modelRef.current = segmentation;
+      // Initialize Tasks Vision SegmentationEngine
+      const engine = new SegmentationEngine();
+      await engine.initialize();
+      segmentationEngineRef.current = engine;
       setModelStatus('ready');
+
+      // Warm up model with one frame in background
+      const video = videoRef.current;
+      if (video && video.readyState >= 2) {
+        console.log('[BlurTest] Sending warmup frame to ImageSegmenter in background...');
+        engine.segment(video, performance.now());
+        console.log('[BlurTest] Background warmup completed. WASM loaded successfully.');
+      }
 
       // Start requestAnimationFrame loop
       renderLoopActiveRef.current = true;
@@ -182,29 +185,45 @@ export const BlurTest: React.FC = () => {
       // Start FPS counter
       startFpsCounter();
     } catch (err: any) {
-      console.error('Error initializing SelfieSegmentation:', err);
+      console.error('Error initializing ImageSegmenter:', err);
       setErrorMessage('فشل تحميل نموذج الذكاء الاصطناعي: ' + err.message);
       setModelStatus('error');
     }
   };
 
-  // The requestAnimationFrame loop matching the standalone proven code
+  // The requestAnimationFrame loop using tasks vision ImageSegmenter
   const startRenderLoop = () => {
-    const processFrame = async () => {
+    const processFrame = () => {
       if (!renderLoopActiveRef.current) return;
 
       const video = videoRef.current;
-      const model = modelRef.current;
+      const engine = segmentationEngineRef.current;
+      const canvas = canvasRef.current;
 
-      if (video && video.readyState >= 2 && model) {
+      if (video && video.readyState >= 2 && canvas) {
         // Calculate raw performance FPS
         frameCountRef.current++;
         
-        try {
-          // Send video frame to MediaPipe
-          await model.send({ image: video });
-        } catch (e) {
-          console.error('Error in segmentation processFrame:', e);
+        if (!webglRendererRef.current) {
+          webglRendererRef.current = new WebGLRenderer(canvas);
+        }
+
+        const currentMode = currentEffectModeRef.current;
+        const bgImg = document.getElementById('sandboxBgImg') as HTMLImageElement;
+        const activeBgImg = (currentMode === 'bg' && bgImg && bgImg.complete && bgImg.naturalWidth !== 0) ? bgImg : undefined;
+
+        if (currentMode === 'normal') {
+          // Zero AI model overhead using passthrough WebGL renderer
+          webglRendererRef.current.render(video, null, { type: 'none' });
+        } else if (engine) {
+          // Sync segmentation
+          const timestampMs = performance.now();
+          const mask = engine.segment(video, timestampMs);
+          
+          webglRendererRef.current.render(video, mask, {
+            type: currentMode === 'blur' ? 'blur' : 'image',
+            source: activeBgImg
+          });
         }
       }
 
@@ -214,58 +233,6 @@ export const BlurTest: React.FC = () => {
     };
 
     requestAnimationFrame(processFrame);
-  };
-
-  // Custom drawing implementation matching working code exactly!
-  const drawResults = (results: any) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) return;
-
-    // Set dimensions to match output results or fallback
-    if (results.image) {
-      canvas.width = results.image.width;
-      canvas.height = results.image.height;
-    }
-
-    const currentMode = currentEffectModeRef.current;
-
-    ctx.save();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    if (currentMode === 'normal') {
-      // Normal: Just draw video frame directly
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-    } else {
-      // 1. Draw the segmentation mask
-      ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
-
-      // 2. Draw the raw video ONLY where the mask is (the person)
-      ctx.globalCompositeOperation = 'source-in';
-      ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-      // 3. Draw the background behind the person
-      ctx.globalCompositeOperation = 'destination-over';
-
-      if (currentMode === 'blur') {
-        ctx.filter = 'blur(20px)';
-        ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-      } else if (currentMode === 'bg') {
-        ctx.filter = 'none';
-        const bgImg = document.getElementById('sandboxBgImg') as HTMLImageElement;
-        if (bgImg && bgImg.complete && bgImg.naturalWidth !== 0) {
-          ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-        } else {
-          // Solid color fallback
-          ctx.fillStyle = '#1e1e24';
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-        }
-      }
-    }
-
-    ctx.restore();
   };
 
   // FPS monitoring
@@ -359,7 +326,7 @@ export const BlurTest: React.FC = () => {
             <div className="relative aspect-video bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 flex items-center justify-center">
               <canvas
                 ref={canvasRef}
-                className="w-full h-full object-cover transform -scale-x-100"
+                className="w-full h-full object-cover"
               />
               
               {!isCameraActive && (

@@ -243,7 +243,9 @@ export const CallOverlay: React.FC = () => {
                 autoPlay
                 playsInline
                 muted
-                className={`w-full h-full object-cover transform -scale-x-100 ${
+                className={`w-full h-full object-cover ${
+                  videoMode === 'normal' ? 'transform -scale-x-100' : ''
+                } ${
                   localStream && !isVideoMuted ? 'block' : 'hidden'
                 }`}
               />

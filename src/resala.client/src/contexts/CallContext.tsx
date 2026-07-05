@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useRef, type ReactNode } from 'react';
 import { useSignalR } from './SignalRContext';
-import { SelfieSegmentation } from '@mediapipe/selfie_segmentation';
+import { WebGLRenderer } from '../utils/WebGLRenderer';
+import { SegmentationEngine } from '../utils/SegmentationEngine';
 
 export type CallState = 'IDLE' | 'PRE_CALL' | 'OUTGOING' | 'INCOMING' | 'CONNECTED' | 'DISCONNECTED' | 'BUSY';
 export type CallType = 'AUDIO' | 'VIDEO';
@@ -43,13 +44,14 @@ interface CallContextType {
 
 const CallContext = createContext<CallContextType | undefined>(undefined);
 
-// Global States for MediaPipe Selfie Segmentation Video Effects
+// Global States for MediaPipe Tasks Vision Video Effects
 let mode: 'normal' | 'blur' | 'bg' = 'normal';
-let selfieSegmentation: SelfieSegmentation | null = null;
 let processedStream: MediaStream | null = null;
 let originalRawVideoTrack: MediaStreamTrack | null = null;
 let renderLoopActive = false;
 let rawVideoElement: HTMLVideoElement | null = null;
+let webglRenderer: WebGLRenderer | null = null;
+let segmentationEngine: SegmentationEngine | null = null;
 
 
 // Web Audio API Synthesizer Sound Generator
@@ -319,9 +321,16 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     renderLoopActive = false;
     mode = 'normal';
-    selfieSegmentation = null;
     processedStream = null;
     originalRawVideoTrack = null;
+    if (webglRenderer) {
+      webglRenderer.destroy();
+      webglRenderer = null;
+    }
+    if (segmentationEngine) {
+      segmentationEngine.destroy();
+      segmentationEngine = null;
+    }
     setVideoMode('normal');
 
     if (rawVideoElement) {
@@ -525,6 +534,9 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       localStreamRef.current = stream;
       setLocalStream(stream);
       await initializeDevices(stream);
+      if (type === 'VIDEO') {
+        triggerBackgroundSelfieSegmentationWarmup(stream);
+      }
     }
 
     // 2. Setup RTCPeerConnection (Local STUN server as primary, Google STUN as fallback)
@@ -591,6 +603,58 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           });
         }
       }
+    }
+  };
+
+  // Helper to trigger background warmup of SelfieSegmentation
+  const triggerBackgroundSelfieSegmentationWarmup = async (stream: MediaStream) => {
+    try {
+      const canvas = document.getElementById('blurCanvas') as HTMLCanvasElement;
+      if (!canvas) return;
+
+      // Initialize WebGLRenderer
+      if (!webglRenderer) {
+        webglRenderer = new WebGLRenderer(canvas);
+      }
+
+      // Initialize SegmentationEngine using @mediapipe/tasks-vision
+      if (!segmentationEngine) {
+        console.log('[ResalaBlur] Pre-initializing local MediaPipe Tasks Vision ImageSegmenter...');
+        segmentationEngine = new SegmentationEngine();
+        await segmentationEngine.initialize();
+      }
+
+      // 2. Create/Warm up permanent rawVideoElement in background to avoid attachment delays later
+      if (!rawVideoElement) {
+        rawVideoElement = document.createElement('video');
+        rawVideoElement.id = 'resalaRawVideo';
+        rawVideoElement.autoplay = true;
+        rawVideoElement.playsInline = true;
+        rawVideoElement.muted = true;
+        rawVideoElement.style.display = 'none';
+        document.body.appendChild(rawVideoElement);
+        console.log('[ResalaBlur] Warmup: Permanent raw video element created in DOM.');
+      }
+
+      const activeVideoTrack = stream.getVideoTracks()[0];
+      if (activeVideoTrack && rawVideoElement.srcObject === null) {
+        const rawStream = new MediaStream([activeVideoTrack]);
+        rawVideoElement.srcObject = rawStream;
+
+        rawVideoElement.onloadedmetadata = () => {
+          rawVideoElement?.play().then(() => {
+            console.log('[ResalaBlur] Warmup: Sending warmup frame to ImageSegmenter...');
+            if (segmentationEngine && rawVideoElement) {
+              segmentationEngine.segment(rawVideoElement, performance.now());
+              console.log('[ResalaBlur] Warmup: Background warmup completed. WASM loaded successfully.');
+            }
+          }).catch(err => {
+            console.warn('[ResalaBlur] Warmup: play() failed:', err);
+          });
+        };
+      }
+    } catch (err) {
+      console.error('[ResalaBlur] Failed to trigger background SelfieSegmentation warmup:', err);
     }
   };
 
@@ -759,6 +823,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         localStreamRef.current = stream;
         setLocalStream(stream);
         await initializeDevices(stream);
+        triggerBackgroundSelfieSegmentationWarmup(stream);
       } catch (err) {
         console.error("Failed to warm up camera on startCall PRE_CALL:", err);
       }
@@ -975,9 +1040,9 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   };
 
   // checkBrowserCapabilities: فحص إمكانية تشغيل الميزة البرمجية والرسومية على جهاز العميل
-  const checkBrowserCapabilities = (ctx: CanvasRenderingContext2D) => {
+  const checkBrowserCapabilities = (canvas: HTMLCanvasElement) => {
+    const gl = canvas.getContext('webgl2');
     const supportsWasm = typeof WebAssembly === "object";
-    const supportsCanvasFilter = ctx.filter !== undefined;
     const supportsGetUserMedia = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
 
     if (!supportsGetUserMedia) {
@@ -992,10 +1057,10 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         reason: isRtl ? "المتصفح لا يدعم معالجة الـ (WebAssembly) المطلوبة لتشغيل الذكاء الاصطناعي." : "Your browser does not support WebAssembly required for local AI."
       };
     }
-    if (!supportsCanvasFilter) {
+    if (!gl) {
       return { 
         supported: false, 
-        reason: isRtl ? "المتصفح لا يدعم فلاتر الرسوميات الحديثة (Canvas Filter) اللازمة لعمل غبش وتضليل." : "Your browser does not support HTML5 Canvas graphics filters."
+        reason: isRtl ? "المتصفح لا يدعم تقنيات تسريع الرسوميات الحديثة (WebGL2) اللازمة لعزل الخلفية." : "Your browser does not support WebGL2 graphics acceleration."
       };
     }
 
@@ -1012,15 +1077,9 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    if (!ctx) {
-      console.error('[ResalaBlur] Failed to get 2D context for #blurCanvas');
-      return;
-    }
-
     // فحص الأهلية البرمجية عند التفعيل
     if (newMode !== 'normal') {
-      const capability = checkBrowserCapabilities(ctx);
+      const capability = checkBrowserCapabilities(canvas);
       if (!capability.supported) {
         alert(isRtl 
           ? `عذراً، لا يمكن تفعيل هذه الميزة في متصفحك الحالي.\n\nالسبب: ${capability.reason}\n\nينصح بشدة باستخدام Google Chrome أو Microsoft Edge للحصول على تجربة كاملة.`
@@ -1032,8 +1091,14 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     console.log(`[ResalaBlur] setVideoEffectMode called. Mode: ${newMode}`);
     mode = newMode;
-    setVideoMode(newMode);
     setIsBackgroundBlurred(newMode === 'blur');
+
+    // For 'normal' mode, update videoMode immediately (CSS mirror stays on).
+    // For blur/bg, defer videoMode update until the canvas stream is ready,
+    // preventing the split-second CSS mirror removal before WebGL takes over.
+    if (newMode === 'normal') {
+      setVideoMode(newMode);
+    }
 
     if (newMode === 'normal') {
       // TURN OFF VIDEO EFFECTS
@@ -1043,10 +1108,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         renderLoopActive = false;
         console.log('[ResalaBlur] Render loop stopped.');
 
-        // 2. Clear raw video element stream
-        if (rawVideoElement) {
-          rawVideoElement.srcObject = null;
-        }
+        // 2. Clear raw video element stream - kept active to avoid toggle delays
 
         // 3. Revert RTCPeerConnection video track back to the original raw video track
         if (peerConnectionRef.current && originalRawVideoTrack) {
@@ -1066,8 +1128,7 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           setLocalStream(new MediaStream(restoredTracks));
         }
 
-        // 5. Clear the canvas to prevent memory leaks
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // 5. Canvas clearing not needed for WebGL mode
       } catch (err) {
         console.error('[ResalaBlur] Failed to revert to normal video:', err);
       }
@@ -1095,17 +1156,19 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           console.log('[ResalaBlur] Hidden raw video element created in DOM.');
         }
 
-        // Feed original raw camera stream to the hidden video element
-        if (originalRawVideoTrack && rawVideoElement.srcObject === null) {
-          const rawStream = new MediaStream([originalRawVideoTrack]);
-          rawVideoElement.srcObject = rawStream;
-          await rawVideoElement.play().catch(err => console.error('[ResalaBlur] Failed to play rawVideoElement:', err));
-        } else if (localStreamRef.current && rawVideoElement.srcObject === null) {
-          const rawTracks = localStreamRef.current.getVideoTracks();
-          if (rawTracks.length > 0) {
-            const rawStream = new MediaStream([rawTracks[0]]);
+        // Feed original raw camera stream to the hidden video element (only if not already set)
+        if (rawVideoElement.srcObject === null) {
+          if (originalRawVideoTrack) {
+            const rawStream = new MediaStream([originalRawVideoTrack]);
             rawVideoElement.srcObject = rawStream;
-            await rawVideoElement.play().catch(err => console.error('[ResalaBlur] Failed to play rawVideoElement fallback:', err));
+            await rawVideoElement.play().catch(err => console.error('[ResalaBlur] Failed to play rawVideoElement:', err));
+          } else if (localStreamRef.current) {
+            const rawTracks = localStreamRef.current.getVideoTracks();
+            if (rawTracks.length > 0) {
+              const rawStream = new MediaStream([rawTracks[0]]);
+              rawVideoElement.srcObject = rawStream;
+              await rawVideoElement.play().catch(err => console.error('[ResalaBlur] Failed to play rawVideoElement fallback:', err));
+            }
           }
         }
 
@@ -1118,51 +1181,16 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           canvas.height = 480;
         }
 
-        // 3. Initialize SelfieSegmentation model using NPM import if not done
-        if (!selfieSegmentation) {
-          console.log('[ResalaBlur] Initializing local MediaPipe SelfieSegmentation model (NPM version)...');
-          selfieSegmentation = new SelfieSegmentation({
-            locateFile: (file) => `/selfie_segmentation/${file}` // Serves locally offline from public directory!
-          });
+        // Initialize WebGLRenderer
+        if (!webglRenderer) {
+          webglRenderer = new WebGLRenderer(canvas);
+        }
 
-          selfieSegmentation.setOptions({
-            modelSelection: 0 // General model selection for high shoulders/chair accuracy
-          });
-
-          // 4. onResults - canvas composition matching the proven working standalone code
-          selfieSegmentation.onResults((results: any) => {
-            if (mode === 'normal' || !canvas || !ctx) return;
-
-            ctx.save();
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 1. Draw the segmentation mask
-            ctx.drawImage(results.segmentationMask, 0, 0, canvas.width, canvas.height);
-
-            // 2. Draw the raw video ONLY where the mask is (the person)
-            ctx.globalCompositeOperation = 'source-in';
-            ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-
-            // 3. Draw the background behind the person
-            ctx.globalCompositeOperation = 'destination-over';
-
-            if (mode === 'blur') {
-              ctx.filter = 'blur(20px)';
-              ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
-            }
-            else if (mode === 'bg') {
-              ctx.filter = 'none';
-              const bgImg = document.getElementById('bgImg') as HTMLImageElement;
-              if (bgImg) {
-                ctx.drawImage(bgImg, 0, 0, canvas.width, canvas.height);
-              } else {
-                ctx.fillStyle = '#1e1e24';
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-              }
-            }
-
-            ctx.restore();
-          });
+        // 3. Initialize Tasks Vision SegmentationEngine
+        if (!segmentationEngine) {
+          console.log('[ResalaBlur] Initializing local MediaPipe Tasks Vision ImageSegmenter...');
+          segmentationEngine = new SegmentationEngine();
+          await segmentationEngine.initialize();
         }
 
         // 5. Start requestAnimationFrame render loop using rawVideoElement
@@ -1170,11 +1198,18 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           renderLoopActive = true;
           console.log('[ResalaBlur] Starting requestAnimationFrame render loop...');
 
-          const processFrame = async () => {
+          const processFrame = () => {
             if (!renderLoopActive) return;
-            if (mode !== 'normal' && selfieSegmentation && rawVideoElement) {
+            if (mode !== 'normal' && segmentationEngine && webglRenderer && rawVideoElement) {
               try {
-                await selfieSegmentation.send({ image: rawVideoElement });
+                const timestampMs = performance.now();
+                const mask = segmentationEngine.segment(rawVideoElement, timestampMs);
+                const bgImg = document.getElementById('bgImg') as HTMLImageElement;
+                
+                webglRenderer.render(rawVideoElement, mask, {
+                  type: mode === 'blur' ? 'blur' : 'image',
+                  source: bgImg || undefined
+                });
               } catch (e) {
                 console.error('[ResalaBlur] Error in segmentation frame:', e);
               }
@@ -1213,6 +1248,10 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         }
 
         // 7. Update React state for local preview
+        // Set videoMode NOW — same React batch as stream switch, so CSS mirror
+        // is removed at the exact same render as the WebGL-mirrored stream appears.
+        setVideoMode(newMode);
+        setIsBlurLoading(false);
         setLocalStream(finalStream);
         console.log(`[ResalaBlur] Video effect ${newMode} enabled successfully!`);
       } catch (err) {
@@ -1220,7 +1259,6 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         mode = 'normal';
         setVideoMode('normal');
         setIsBackgroundBlurred(false);
-      } finally {
         setIsBlurLoading(false);
       }
     }

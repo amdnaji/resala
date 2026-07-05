@@ -37,6 +37,8 @@ export class VideoBackgroundBlurrer {
   private isLooping = false;
   private width = 640;  // Balanced processing resolution for CPU/GPU friendliness
   private height = 480;
+  private offscreenCanvasElement: HTMLCanvasElement | null = null;
+  private offscreenCtx: CanvasRenderingContext2D | null = null;
 
   constructor(rawStream: MediaStream) {
     this.rawStream = rawStream;
@@ -147,8 +149,23 @@ export class VideoBackgroundBlurrer {
 
       // Draw the blurred background behind the person
       ctx.globalCompositeOperation = 'destination-over';
-      ctx.filter = 'blur(12px)';  // Perfect standard 12px blur intensity
-      ctx.drawImage(results.image, 0, 0, this.width, this.height);
+      const targetW = Math.round(this.width / 4);
+      const targetH = Math.round(this.height / 4);
+      if (!this.offscreenCanvasElement || this.offscreenCanvasElement.width !== targetW || this.offscreenCanvasElement.height !== targetH) {
+        this.offscreenCanvasElement = document.createElement('canvas');
+        this.offscreenCanvasElement.width = targetW;
+        this.offscreenCanvasElement.height = targetH;
+        this.offscreenCtx = this.offscreenCanvasElement.getContext('2d');
+      }
+      
+      if (this.offscreenCtx) {
+        this.offscreenCtx.filter = 'blur(3px)';
+        this.offscreenCtx.drawImage(results.image, 0, 0, targetW, targetH);
+        ctx.drawImage(this.offscreenCanvasElement, 0, 0, this.width, this.height);
+      } else {
+        ctx.filter = 'blur(12px)';
+        ctx.drawImage(results.image, 0, 0, this.width, this.height);
+      }
 
       ctx.restore();
     });
@@ -212,6 +229,12 @@ export class VideoBackgroundBlurrer {
     if (this.canvasElement) {
       this.canvasElement.remove(); // Remove from DOM
       this.canvasElement = null;
+    }
+
+    if (this.offscreenCanvasElement) {
+      this.offscreenCanvasElement.remove();
+      this.offscreenCanvasElement = null;
+      this.offscreenCtx = null;
     }
   }
 }
