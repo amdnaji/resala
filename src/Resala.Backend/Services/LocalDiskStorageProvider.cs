@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using System;
+using System.Globalization;
 using System.IO;
 using System.Threading.Tasks;
 
@@ -22,17 +23,23 @@ namespace Resala.Backend.Services
             _configuration = configuration;
         }
 
-        public async Task<string> UploadFileAsync(IFormFile file, string directory)
+        private string GetStorageBasePath()
         {
-            if (file == null || file.Length == 0)
-                throw new ArgumentException("File is empty or null.");
-
             var storagePath = _configuration.GetValue<string>("Storage:Path");
             if (string.IsNullOrEmpty(storagePath))
             {
                 var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
                 storagePath = Path.Combine(webRootPath, "uploads");
             }
+            return storagePath;
+        }
+
+        public async Task<string> UploadFileAsync(IFormFile file, string directory)
+        {
+            if (file == null || file.Length == 0)
+                throw new ArgumentException("File is empty or null.");
+
+            var storagePath = GetStorageBasePath();
             var uploadsFolder = Path.Combine(storagePath, directory);
             
             if (!Directory.Exists(uploadsFolder))
@@ -60,15 +67,14 @@ namespace Resala.Backend.Services
             if (file == null || file.Length == 0)
                 throw new ArgumentException("File is empty or null.");
 
-            var dateFolder = DateTime.UtcNow.ToString("yyyy\\\\MM\\\\dd");
-            var directory = Path.Combine("attachments", dateFolder);
+            // Capture UTC date once for consistency across folder creation and URL generation
+            var now = DateTime.UtcNow;
+            var year = now.ToString("yyyy", CultureInfo.InvariantCulture);
+            var month = now.ToString("MM", CultureInfo.InvariantCulture);
+            var day = now.ToString("dd", CultureInfo.InvariantCulture);
 
-            var storagePath = _configuration.GetValue<string>("Storage:Path");
-            if (string.IsNullOrEmpty(storagePath))
-            {
-                var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-                storagePath = Path.Combine(webRootPath, "uploads");
-            }
+            var directory = Path.Combine("attachments", year, month, day);
+            var storagePath = GetStorageBasePath();
             var uploadsFolder = Path.Combine(storagePath, directory);
             
             if (!Directory.Exists(uploadsFolder))
@@ -76,7 +82,7 @@ namespace Resala.Backend.Services
                 Directory.CreateDirectory(uploadsFolder);
             }
 
-            var extension = Path.GetExtension(file.FileName);
+            var extension = Path.GetExtension(file.FileName)?.ToLowerInvariant();
             var uniqueFileName = $"{Guid.NewGuid()}{extension}";
             var filePath = Path.Combine(uploadsFolder, uniqueFileName);
 
@@ -87,10 +93,37 @@ namespace Resala.Backend.Services
 
             var request = _httpContextAccessor.HttpContext?.Request;
             var baseUrl = $"{request?.Scheme}://{request?.Host}";
-            var dateUrlPart = DateTime.UtcNow.ToString("yyyy/MM/dd");
-            var fileUrl = $"{baseUrl}/uploads/attachments/{dateUrlPart}/{uniqueFileName}";
+            var dateUrlPart = $"{year}/{month}/{day}";
+            var fileUrl = $"{baseUrl}/api/files/attachments/{dateUrlPart}/{uniqueFileName}";
 
             return fileUrl;
+        }
+
+        public Task<StorageFileResult?> GetAttachmentFileAsync(string relativePath)
+        {
+            if (string.IsNullOrWhiteSpace(relativePath)) return Task.FromResult<StorageFileResult?>(null);
+
+            var cleanRelativePath = relativePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+            var storagePath = GetStorageBasePath();
+            var fullPath = Path.Combine(storagePath, cleanRelativePath);
+
+            if (!File.Exists(fullPath))
+            {
+                return Task.FromResult<StorageFileResult?>(null);
+            }
+
+            var extension = Path.GetExtension(fullPath)?.ToLowerInvariant() ?? "";
+            var contentType = GetContentType(extension);
+            var fileName = Path.GetFileName(fullPath);
+            var fileInfo = new FileInfo(fullPath);
+
+            return Task.FromResult<StorageFileResult?>(new StorageFileResult
+            {
+                PhysicalPath = fullPath,
+                ContentType = contentType,
+                FileName = fileName,
+                FileLength = fileInfo.Length
+            });
         }
 
         public Task DeleteFileAsync(string fileUrl)
@@ -100,17 +133,25 @@ namespace Resala.Backend.Services
             try
             {
                 var uri = new Uri(fileUrl);
-                var localPath = uri.LocalPath; // e.g., /uploads/profile-pictures/filename.jpg
+                var localPath = uri.LocalPath;
                 
-                var storagePath = _configuration.GetValue<string>("Storage:Path");
-                if (string.IsNullOrEmpty(storagePath))
+                var storagePath = GetStorageBasePath();
+                
+                // Remove "/api/files/" or "/uploads/" prefix to get the relative path
+                string relativePath;
+                if (localPath.StartsWith("/api/files/", StringComparison.OrdinalIgnoreCase))
                 {
-                    var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-                    storagePath = Path.Combine(webRootPath, "uploads");
+                    relativePath = localPath.Substring("/api/files/".Length);
                 }
-                
-                // Remove the "/uploads/" part to get the relative path inside the storage directory
-                var relativePath = localPath.StartsWith("/uploads/") ? localPath.Substring(9) : localPath.TrimStart('/');
+                else if (localPath.StartsWith("/uploads/", StringComparison.OrdinalIgnoreCase))
+                {
+                    relativePath = localPath.Substring("/uploads/".Length);
+                }
+                else
+                {
+                    relativePath = localPath.TrimStart('/');
+                }
+
                 var filePath = Path.Combine(storagePath, relativePath.Replace('/', Path.DirectorySeparatorChar));
                 
                 if (File.Exists(filePath))
@@ -124,6 +165,25 @@ namespace Resala.Backend.Services
             }
 
             return Task.CompletedTask;
+        }
+
+        private static string GetContentType(string extension)
+        {
+            return extension switch
+            {
+                ".jpg" or ".jpeg" => "image/jpeg",
+                ".png" => "image/png",
+                ".gif" => "image/gif",
+                ".webp" => "image/webp",
+                ".mp3" => "audio/mpeg",
+                ".wav" => "audio/wav",
+                ".ogg" => "audio/ogg",
+                ".mp4" => "video/mp4",
+                ".webm" => "video/webm",
+                ".pdf" => "application/pdf",
+                ".txt" => "text/plain",
+                _ => "application/octet-stream"
+            };
         }
     }
 }

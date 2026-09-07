@@ -37,7 +37,21 @@ builder.Services.ConfigureApplicationCookie(options =>
 
 // 4. Add Services & SignalR
 builder.Services.AddHttpContextAccessor();
-builder.Services.AddScoped<Resala.Backend.Services.IStorageService, Resala.Backend.Services.LocalDiskStorageProvider>();
+builder.Services.AddMemoryCache();
+
+var storageProvider = builder.Configuration.GetValue<string>("Storage:Provider") ?? "LocalStorage";
+Console.WriteLine($"[Storage Service] Active Provider configured: '{storageProvider}'");
+if (storageProvider.Equals("AzureBlob", StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine("[Storage Service] Registering AzureBlobStorageProvider.");
+    builder.Services.AddScoped<Resala.Backend.Services.IStorageService, Resala.Backend.Services.AzureBlobStorageProvider>();
+}
+else
+{
+    Console.WriteLine("[Storage Service] Registering LocalDiskStorageProvider.");
+    builder.Services.AddScoped<Resala.Backend.Services.IStorageService, Resala.Backend.Services.LocalDiskStorageProvider>();
+}
+
 builder.Services.AddScoped<Resala.Backend.Services.ILdapService, Resala.Backend.Services.LdapService>();
 builder.Services.AddHostedService<Resala.Backend.Services.StunHostedService>();
 builder.Services.AddSingleton<Resala.Backend.Services.ICallSessionTracker, Resala.Backend.Services.InMemoryCallSessionTracker>();
