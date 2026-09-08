@@ -57,6 +57,11 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Serve SPA static files from wwwroot
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+// Serve user uploads from configured storage path
 var storagePath = builder.Configuration.GetValue<string>("Storage:Path");
 if (!string.IsNullOrEmpty(storagePath))
 {
@@ -70,10 +75,7 @@ if (!string.IsNullOrEmpty(storagePath))
         RequestPath = "/uploads"
     });
 }
-else
-{
-    app.UseStaticFiles();
-}
+
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
 
@@ -89,6 +91,9 @@ app.MapGet("/api/auth/latest-reset-link", () =>
 });
 
 app.MapHub<Resala.Backend.Hubs.ChatHub>("/hubs/chat");
+
+// Fallback to index.html for client-side SPA routing (React Router)
+app.MapFallbackToFile("index.html");
 
 using (var scope = app.Services.CreateScope())
 {
