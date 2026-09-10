@@ -77,9 +77,9 @@ export const ProfilePanel: React.FC<ProfilePanelProps> = ({ isOpen, onClose }) =
       if (setUser && user) {
         setUser({ ...user, profilePictureUrl: url });
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to upload profile picture:', error);
-      alert(t('common.upload_failed'));
+      alert(error?.response?.data?.message || t('common.upload_failed'));
     } finally {
       setIsUploadingPhoto(false);
       setUploadProgress(0);

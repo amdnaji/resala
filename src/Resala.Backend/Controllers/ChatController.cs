@@ -375,6 +375,9 @@ namespace Resala.Backend.Controllers
         [HttpPost("{chatId}/picture")]
         public async Task<IActionResult> UploadGroupPicture(Guid chatId, [FromForm] IFormFile file, [FromServices] Resala.Backend.Services.IStorageService storageService)
         {
+            if (!storageService.IsConfigured)
+                return BadRequest(new { message = "خاصية رفع الملفات غير مفعلة على هذا الخادم (File storage is disabled or not configured)." });
+
             var userId = CurrentUserId;
             var chat = await _context.Chats.Include(c => c.Participants).FirstOrDefaultAsync(c => c.Id == chatId);
             

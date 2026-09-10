@@ -25,12 +25,13 @@ namespace Resala.Backend.Controllers
         }
 
         [HttpGet("settings")]
-        public IActionResult GetSettings()
+        public IActionResult GetSettings([FromServices] IStorageService storageService)
         {
             return Ok(new
             {
                 isLdapEnabled = _ldapService.IsEnabled,
-                authMode = _ldapService.AuthMode
+                authMode = _ldapService.AuthMode,
+                isStorageEnabled = storageService.IsConfigured
             });
         }
 

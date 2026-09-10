@@ -22,17 +22,24 @@ namespace Resala.Backend.Services
             _configuration = configuration;
         }
 
+        public bool IsConfigured
+        {
+            get
+            {
+                var storagePath = _configuration.GetValue<string>("Storage:Path");
+                return !string.IsNullOrWhiteSpace(storagePath);
+            }
+        }
+
         public async Task<string> UploadFileAsync(IFormFile file, string directory)
         {
+            if (!IsConfigured)
+                throw new InvalidOperationException("File storage is not configured or disabled on this server.");
+
             if (file == null || file.Length == 0)
                 throw new ArgumentException("File is empty or null.");
 
-            var storagePath = _configuration.GetValue<string>("Storage:Path");
-            if (string.IsNullOrEmpty(storagePath))
-            {
-                var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-                storagePath = Path.Combine(webRootPath, "uploads");
-            }
+            var storagePath = _configuration.GetValue<string>("Storage:Path")!;
             var uploadsFolder = Path.Combine(storagePath, directory);
             
             if (!Directory.Exists(uploadsFolder))
@@ -57,18 +64,16 @@ namespace Resala.Backend.Services
 
         public async Task<string> UploadAttachmentAsync(IFormFile file)
         {
+            if (!IsConfigured)
+                throw new InvalidOperationException("File storage is not configured or disabled on this server.");
+
             if (file == null || file.Length == 0)
                 throw new ArgumentException("File is empty or null.");
 
             var dateFolder = DateTime.UtcNow.ToString("yyyy\\\\MM\\\\dd");
             var directory = Path.Combine("attachments", dateFolder);
 
-            var storagePath = _configuration.GetValue<string>("Storage:Path");
-            if (string.IsNullOrEmpty(storagePath))
-            {
-                var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-                storagePath = Path.Combine(webRootPath, "uploads");
-            }
+            var storagePath = _configuration.GetValue<string>("Storage:Path")!;
             var uploadsFolder = Path.Combine(storagePath, directory);
             
             if (!Directory.Exists(uploadsFolder))
@@ -95,19 +100,14 @@ namespace Resala.Backend.Services
 
         public Task DeleteFileAsync(string fileUrl)
         {
-            if (string.IsNullOrEmpty(fileUrl)) return Task.CompletedTask;
+            if (!IsConfigured || string.IsNullOrEmpty(fileUrl)) return Task.CompletedTask;
 
             try
             {
                 var uri = new Uri(fileUrl);
                 var localPath = uri.LocalPath; // e.g., /uploads/profile-pictures/filename.jpg
                 
-                var storagePath = _configuration.GetValue<string>("Storage:Path");
-                if (string.IsNullOrEmpty(storagePath))
-                {
-                    var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-                    storagePath = Path.Combine(webRootPath, "uploads");
-                }
+                var storagePath = _configuration.GetValue<string>("Storage:Path")!;
                 
                 // Remove the "/uploads/" part to get the relative path inside the storage directory
                 var relativePath = localPath.StartsWith("/uploads/") ? localPath.Substring(9) : localPath.TrimStart('/');

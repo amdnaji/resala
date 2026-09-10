@@ -61,19 +61,31 @@ var app = builder.Build();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-// Serve user uploads from configured storage path
+// Serve user uploads from configured storage path (optional)
 var storagePath = builder.Configuration.GetValue<string>("Storage:Path");
-if (!string.IsNullOrEmpty(storagePath))
+if (!string.IsNullOrWhiteSpace(storagePath))
 {
-    if (!Directory.Exists(storagePath))
+    try
     {
-        Directory.CreateDirectory(storagePath);
+        if (!Directory.Exists(storagePath))
+        {
+            Directory.CreateDirectory(storagePath);
+        }
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(storagePath),
+            RequestPath = "/uploads"
+        });
+        Console.WriteLine($"[Storage] File storage successfully initialized at: {storagePath}");
     }
-    app.UseStaticFiles(new StaticFileOptions
+    catch (Exception ex)
     {
-        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(storagePath),
-        RequestPath = "/uploads"
-    });
+        Console.WriteLine($"[Storage Warning] Failed to initialize storage directory '{storagePath}': {ex.Message}. File storage will be disabled.");
+    }
+}
+else
+{
+    Console.WriteLine("[Storage] Storage:Path is empty or null. File storage is disabled.");
 }
 
 app.UseCors("AllowAll");

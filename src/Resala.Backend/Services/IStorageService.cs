@@ -5,6 +5,7 @@ namespace Resala.Backend.Services
 {
     public interface IStorageService
     {
+        bool IsConfigured { get; }
         Task<string> UploadFileAsync(IFormFile file, string directory);
         Task<string> UploadAttachmentAsync(IFormFile file);
         Task DeleteFileAsync(string fileUrl);

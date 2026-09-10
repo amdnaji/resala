@@ -21,10 +21,20 @@ namespace Resala.Backend.Controllers
             _storageService = storageService;
         }
 
+        [HttpGet("status")]
+        [AllowAnonymous]
+        public IActionResult GetStorageStatus()
+        {
+            return Ok(new { isStorageEnabled = _storageService.IsConfigured });
+        }
+
         [HttpPost("upload")]
         [RequestSizeLimit(100_000_000)] // 100MB max limit
         public async Task<IActionResult> UploadAttachment(IFormFile file)
         {
+            if (!_storageService.IsConfigured)
+                return BadRequest(new { message = "خاصية رفع الملفات غير مفعلة على هذا الخادم (File storage is disabled or not configured)." });
+
             if (file == null || file.Length == 0)
                 return BadRequest("No file uploaded.");
 
