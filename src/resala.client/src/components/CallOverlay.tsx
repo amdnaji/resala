@@ -1,10 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useCall } from '../contexts/CallContext';
-import { Mic, MicOff, Phone, PhoneOff, User, Video, VideoOff, Monitor, MonitorOff, Loader2, Sparkles, Image as ImageIcon } from 'lucide-react';
+import { 
+  Mic, 
+  MicOff, 
+  Phone, 
+  PhoneOff, 
+  User, 
+  Video, 
+  VideoOff, 
+  Monitor, 
+  MonitorOff, 
+  Loader2, 
+  Sparkles, 
+  Image as ImageIcon,
+  Sliders,
+  X,
+  ShieldCheck,
+  Check
+} from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 export const CallOverlay: React.FC = () => {
-  const [showEffectsMenu, setShowEffectsMenu] = useState(false);
+  const [showSideSettings, setShowSideSettings] = useState(false);
 
   const {
     callState,
@@ -45,6 +62,16 @@ export const CallOverlay: React.FC = () => {
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Bind Local Stream
+  const attachLocalStream = (el: HTMLVideoElement | null) => {
+    localVideoRef.current = el;
+    if (el && localStream) {
+      el.srcObject = localStream;
+      el.play().catch(err => {
+        console.warn("Failed to play local video stream:", err);
+      });
+    }
+  };
+
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
@@ -112,196 +139,420 @@ export const CallOverlay: React.FC = () => {
   const hasRemoteVideo = remoteStream && remoteStream.getVideoTracks().some(track => track.enabled && track.readyState === 'live');
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-xl transition-all duration-500 animate-fadeIn text-white font-sans p-4 sm:p-6 overflow-hidden select-none">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-xl transition-all duration-500 animate-fadeIn text-white font-sans p-3 sm:p-6 overflow-hidden select-none">
       
       {/* Background Subtle Ambience Glows behind the card */}
       <div className="absolute top-1/4 left-1/4 w-96 h-96 rounded-full bg-emerald-500/5 blur-[120px] pointer-events-none" />
       <div className="absolute bottom-1/4 right-1/4 w-96 h-96 rounded-full bg-blue-500/5 blur-[120px] pointer-events-none" />
 
       {/* ---------------------------------------------------- */}
-      {/* 1. VIDEO CALL PERSISTENT CONTAINER                  */}
+      {/* 1. VIDEO CALL: PRE-CALL LOBBY (TEAMS SIDE-BY-SIDE)  */}
       {/* ---------------------------------------------------- */}
-      {callType === 'VIDEO' && callState !== 'INCOMING' ? (
-        <div className="w-full max-w-4xl h-[70vh] min-h-[480px] rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl relative overflow-hidden transition-all duration-500 animate-scaleUp flex items-center justify-center">
+      {callType === 'VIDEO' && callState === 'PRE_CALL' ? (
+        <div className="w-full max-w-5xl h-[86vh] max-h-[740px] min-h-[520px] rounded-3xl border border-slate-800 bg-slate-900/95 backdrop-blur-2xl shadow-2xl relative overflow-hidden transition-all duration-500 animate-scaleUp flex flex-col">
           
-          {/* Main Remote Video Stream or Centered Pulse Placeholder or Pre-Call Setup Lobby */}
-          {callState === 'CONNECTED' && hasRemoteVideo ? (
-            <video
-              ref={remoteVideoRef}
-              autoPlay
-              playsInline
-              className="w-full h-full object-cover z-0 absolute inset-0 bg-slate-950"
-            />
-          ) : callState === 'PRE_CALL' ? (
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-slate-950/20 pointer-events-none p-6 text-center">
-              <div className="bg-slate-950/85 border border-white/10 px-6 py-5 rounded-2xl backdrop-blur-md shadow-2xl max-w-sm pointer-events-auto">
-                <Sparkles className="text-amber-400 mx-auto mb-2 animate-bounce" size={28} />
-                <h3 className="text-sm font-bold text-white mb-1">
-                  {isRtl ? 'معاينة ما قبل الاتصال' : 'Pre-call Setup Lobby'}
-                </h3>
-                <p className="text-[11px] text-slate-400 leading-relaxed mb-4">
-                  {isRtl 
-                    ? 'اختر وضع الكاميرا والأجهزة وتأكد من مظهرك وخلفيتك قبل بدء الاتصال بالضغط على زر الهاتف بالأسفل.'
-                    : 'Configure your effects & devices and verify your background before placing the call by clicking the green button below.'}
-                </p>
+          {/* Top Header Bar */}
+          <div className="px-6 py-4 border-b border-slate-800/80 flex items-center justify-between bg-slate-950/40">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+                <Video size={18} />
+              </div>
+              <div>
+                <h2 className="text-sm sm:text-base font-bold text-white tracking-tight">
+                  {isRtl ? `مكالمة فيديو مع ${displayName || 'المستقبل'}` : `Video Call with ${displayName || 'User'}`}
+                </h2>
+                <span className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                  <ShieldCheck size={12} className="text-emerald-400" />
+                  {isRtl ? 'اتصال مشفر وآمن (E2EE)' : 'End-to-End Encrypted Meeting'}
+                </span>
+              </div>
+            </div>
 
-                {/* Device selectors */}
-                <div className="flex flex-col gap-3 text-right text-xs text-slate-300 w-full border-t border-white/5 pt-3.5 mt-2">
-                  {/* Microphone selector */}
-                  <div className="flex flex-col gap-1 text-left">
-                    <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1">
-                      <Mic size={10} className="text-slate-400" />
-                      <span>{isRtl ? 'الميكروفون (مدخل الصوت)' : 'Microphone (Audio Input)'}</span>
-                    </label>
+            <button
+              onClick={cancelPreCall}
+              className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800/70 transition-colors"
+              title={isRtl ? 'إلغاء ومغادرة' : 'Cancel & Leave'}
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          {/* Main Side-by-Side Area */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 p-5 sm:p-6 flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+            
+            {/* LEFT COLUMN: Camera Preview (Teams Video Viewport) */}
+            <div className="lg:col-span-7 flex flex-col h-full min-h-[280px]">
+              <div className="relative flex-1 rounded-2xl overflow-hidden bg-slate-950 border border-slate-800 flex items-center justify-center shadow-inner group">
+                
+                {/* Live Camera Video Feed */}
+                <video
+                  id="localVideo"
+                  ref={attachLocalStream}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${
+                    videoMode === 'normal' ? 'transform -scale-x-100' : ''
+                  } ${localStream && !isVideoMuted ? 'block' : 'hidden'}`}
+                />
+
+                {/* Camera Muted State */}
+                {(!localStream || isVideoMuted) && (
+                  <div className="w-full h-full flex flex-col items-center justify-center bg-slate-900/90 text-slate-400 p-6 text-center">
+                    <div className="w-20 h-20 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 text-2xl font-bold mb-3 shadow-xl relative">
+                      {displayName ? displayName.charAt(0).toUpperCase() : <User size={32} />}
+                      <div className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center">
+                        <VideoOff size={12} />
+                      </div>
+                    </div>
+                    <span className="text-sm font-semibold text-white">
+                      {isRtl ? 'الكاميرا متوقفة' : 'Your camera is turned off'}
+                    </span>
+                    <span className="text-xs text-slate-400 mt-1 max-w-xs">
+                      {isRtl ? 'انقر على زر الكاميرا بالأسفل لمعاينة صورتك' : 'Click the camera button below to preview yourself'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Top Overlay Badges on Preview */}
+                <div className="absolute top-3 inset-x-3 flex items-center justify-between pointer-events-none z-10">
+                  <span className="bg-slate-950/70 border border-white/10 px-2.5 py-1 rounded-lg backdrop-blur-md text-[10px] font-semibold text-slate-300 flex items-center gap-1.5">
+                    <span className={`w-1.5 h-1.5 rounded-full ${localStream && !isVideoMuted ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`} />
+                    {isRtl ? 'معاينة الكاميرا' : 'Camera Preview'}
+                  </span>
+
+                  {videoMode !== 'normal' && (
+                    <span className="bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-1 rounded-lg backdrop-blur-md text-[10px] font-semibold text-emerald-300 flex items-center gap-1">
+                      <Sparkles size={11} />
+                      {videoMode === 'blur' ? (isRtl ? 'تمويه نشط' : 'Blur Active') : (isRtl ? 'خلفية افتراضية' : 'Virtual BG')}
+                    </span>
+                  )}
+                </div>
+
+                {/* Teams-Style Floating Pill Under/Inside Preview */}
+                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-3 bg-slate-950/80 backdrop-blur-xl border border-white/15 px-4 py-2 rounded-2xl shadow-2xl">
+                  {/* Camera Quick Toggle */}
+                  <button
+                    onClick={toggleVideo}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
+                      !isVideoMuted
+                        ? 'bg-slate-800 text-white hover:bg-slate-700'
+                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30'
+                    }`}
+                    title={isVideoMuted ? 'Turn on camera' : 'Turn off camera'}
+                  >
+                    {isVideoMuted ? <VideoOff size={15} /> : <Video size={15} className="text-emerald-400" />}
+                    <span>{isVideoMuted ? (isRtl ? 'تشغيل' : 'Cam Off') : (isRtl ? 'الكاميرا' : 'Cam On')}</span>
+                  </button>
+
+                  <div className="w-[1px] h-5 bg-white/10" />
+
+                  {/* Mic Quick Toggle */}
+                  <button
+                    onClick={toggleMute}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
+                      !isMuted
+                        ? 'bg-slate-800 text-white hover:bg-slate-700'
+                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/30 hover:bg-rose-500/30'
+                    }`}
+                    title={isMuted ? 'Unmute microphone' : 'Mute microphone'}
+                  >
+                    {isMuted ? <MicOff size={15} /> : <Mic size={15} className="text-emerald-400" />}
+                    <span>{isMuted ? (isRtl ? 'كتم' : 'Mic Off') : (isRtl ? 'الميكروفون' : 'Mic On')}</span>
+                  </button>
+                </div>
+
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: Settings Panel (Side by Side with Camera) */}
+            <div className="lg:col-span-5 flex flex-col justify-between bg-slate-950/60 border border-slate-800/80 rounded-2xl p-5 overflow-y-auto">
+              
+              <div className="flex flex-col gap-5">
+                {/* Header */}
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Sliders size={16} className="text-emerald-400" />
+                    {isRtl ? 'إعدادات الصوت والفيديو' : 'Audio & Video Settings'}
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    {isRtl ? 'اختر أجهزتك ومؤثرات الخلفية قبل بدء المكالمة.' : 'Choose your devices and effects before starting the call.'}
+                  </p>
+                </div>
+
+                {/* Microphone / Audio Input */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Mic size={13} className="text-emerald-400" />
+                      {isRtl ? 'الميكروفون (مدخل الصوت)' : 'Microphone (Audio)'}
+                    </span>
+                    {isMuted && (
+                      <span className="text-[10px] text-rose-400 font-normal">
+                        {isRtl ? '(مكتوم)' : '(Muted)'}
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
                     <select
                       value={selectedAudioDeviceId || ''}
                       onChange={(e) => changeAudioDevice(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                      className="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors appearance-none cursor-pointer pr-8"
                     >
-                      {audioDevices.map((device) => (
-                        <option key={device.deviceId} value={device.deviceId}>
-                          {device.label || `${isRtl ? 'ميكروفون' : 'Microphone'} ${device.deviceId.slice(0, 4)}`}
-                        </option>
-                      ))}
+                      {audioDevices.length > 0 ? (
+                        audioDevices.map((device) => (
+                          <option key={device.deviceId} value={device.deviceId}>
+                            {device.label || `${isRtl ? 'ميكروفون' : 'Microphone'} ${device.deviceId.slice(0, 4)}`}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">{isRtl ? 'الميكروفون الافتراضي' : 'Default Microphone'}</option>
+                      )}
                     </select>
+                    <div className={`absolute top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 ${isRtl ? 'left-3' : 'right-3'}`}>
+                      <Mic size={14} />
+                    </div>
                   </div>
+                </div>
 
-                  {/* Camera selector */}
-                  <div className="flex flex-col gap-1 text-left">
-                    <label className="text-[10px] text-slate-500 font-semibold uppercase tracking-wider flex items-center gap-1">
-                      <Video size={10} className="text-slate-400" />
-                      <span>{isRtl ? 'الكاميرا (مدخل الفيديو)' : 'Camera (Video Input)'}</span>
-                    </label>
+                {/* Camera / Video Input */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Video size={13} className="text-emerald-400" />
+                      {isRtl ? 'الكاميرا (مدخل الفيديو)' : 'Camera (Video)'}
+                    </span>
+                    {isVideoMuted && (
+                      <span className="text-[10px] text-rose-400 font-normal">
+                        {isRtl ? '(مغلقة)' : '(Disabled)'}
+                      </span>
+                    )}
+                  </label>
+                  <div className="relative">
                     <select
                       value={selectedVideoDeviceId || ''}
                       onChange={(e) => changeVideoDevice(e.target.value)}
-                      className="w-full bg-slate-900 border border-slate-700/80 rounded-lg px-2.5 py-1.5 text-white focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                      className="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 transition-colors appearance-none cursor-pointer pr-8"
                     >
-                      {videoDevices.map((device) => (
-                        <option key={device.deviceId} value={device.deviceId}>
-                          {device.label || `${isRtl ? 'كاميرا' : 'Camera'} ${device.deviceId.slice(0, 4)}`}
-                        </option>
-                      ))}
+                      {videoDevices.length > 0 ? (
+                        videoDevices.map((device) => (
+                          <option key={device.deviceId} value={device.deviceId}>
+                            {device.label || `${isRtl ? 'كاميرا' : 'Camera'} ${device.deviceId.slice(0, 4)}`}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">{isRtl ? 'الكاميرا الافتراضية' : 'Default Camera'}</option>
+                      )}
                     </select>
+                    <div className={`absolute top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 ${isRtl ? 'left-3' : 'right-3'}`}>
+                      <Video size={14} />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          ) : (
-            // Calling / Connecting state inside the main canvas
-            <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950/90 relative z-0">
-              <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-emerald-500/5 blur-[80px]" />
-              <div className="relative flex items-center justify-center mb-6">
-                <div className="absolute w-36 h-36 rounded-full border border-emerald-500/20 animate-ping opacity-30" style={{ animationDuration: '3s' }} />
-                <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-slate-850 to-slate-700 flex items-center justify-center text-white text-3xl font-bold shadow-2xl border border-slate-700">
-                  {displayName ? displayName.charAt(0).toUpperCase() : <User size={36} className="text-slate-400" />}
+
+                {/* Background Effects (Teams Style Tiles) */}
+                <div className="flex flex-col gap-2">
+                  <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-amber-400" />
+                    {isRtl ? 'مؤثرات وخلفية الفيديو' : 'Background & Video Effects'}
+                  </label>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {/* Normal / None */}
+                    <button
+                      onClick={() => setVideoEffectMode('normal')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
+                        videoMode === 'normal'
+                          ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-sm'
+                          : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <Video size={18} className="mb-1.5" />
+                      <span className="text-[11px] font-semibold">{isRtl ? 'عادي' : 'None'}</span>
+                      {videoMode === 'normal' && <Check size={12} className="mt-1 text-emerald-400" />}
+                    </button>
+
+                    {/* Blur Background */}
+                    <button
+                      onClick={() => setVideoEffectMode('blur')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
+                        videoMode === 'blur'
+                          ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-sm'
+                          : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      {isBlurLoading ? (
+                        <Loader2 size={18} className="animate-spin text-emerald-400 mb-1.5" />
+                      ) : (
+                        <Sparkles size={18} className="mb-1.5" />
+                      )}
+                      <span className="text-[11px] font-semibold">{isRtl ? 'تمويه' : 'Blur'}</span>
+                      {videoMode === 'blur' && <Check size={12} className="mt-1 text-emerald-400" />}
+                    </button>
+
+                    {/* Virtual Background */}
+                    <button
+                      onClick={() => setVideoEffectMode('bg')}
+                      className={`flex flex-col items-center justify-center p-3 rounded-xl border text-center transition-all ${
+                        videoMode === 'bg'
+                          ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-sm'
+                          : 'bg-slate-900/80 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <ImageIcon size={18} className="mb-1.5" />
+                      <span className="text-[11px] font-semibold">{isRtl ? 'افتراضية' : 'Virtual'}</span>
+                      {videoMode === 'bg' && <Check size={12} className="mt-1 text-emerald-400" />}
+                    </button>
+                  </div>
                 </div>
+
               </div>
-              <h3 className="text-lg font-bold tracking-tight text-white mb-2">
-                {displayName}
-              </h3>
-              <p className="text-xs text-slate-400 flex items-center gap-1.5 bg-slate-900/60 border border-slate-800/80 px-4 py-2 rounded-full">
-                <Loader2 size={12} className="animate-spin text-emerald-400" />
-                <span>
-                  {callState === 'OUTGOING'
-                    ? (isRtl ? 'جاري الاتصال...' : 'Calling...')
-                    : (isRtl ? 'بانتظار تغذية الفيديو...' : 'Connecting video...')}
-                </span>
-              </p>
+
+              {/* Bottom Actions */}
+              <div className="flex items-center gap-3 pt-6 border-t border-slate-800/80 mt-6">
+                <button
+                  onClick={cancelPreCall}
+                  className="flex-1 py-3 px-4 rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-700/80 text-xs font-semibold transition-all flex items-center justify-center gap-2"
+                >
+                  <PhoneOff size={15} className="text-rose-400" />
+                  <span>{isRtl ? 'إلغاء' : 'Cancel'}</span>
+                </button>
+
+                <button
+                  onClick={proceedToCall}
+                  className="flex-[2] py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold shadow-lg shadow-emerald-950 transition-all transform active:scale-95 flex items-center justify-center gap-2 animate-pulse"
+                >
+                  <Phone size={15} />
+                  <span>{isRtl ? 'بدء المكالمة الآن' : 'Start Call Now'}</span>
+                </button>
+              </div>
+
             </div>
-          )}
 
-          {/* Top subtle overlay inside container */}
-          <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-black/70 to-transparent pointer-events-none z-10" />
-
-          {/* Metadata Display overlay (Top Left of Card) */}
-          <div className="absolute top-4 left-4 sm:top-6 sm:left-6 z-20 flex flex-col items-start bg-slate-950/50 backdrop-blur-md border border-white/5 px-3 py-2 rounded-xl">
-            <span className="text-white text-sm sm:text-base font-bold tracking-tight">
-              {displayName}
-            </span>
-            <span className="text-emerald-400 font-mono text-xs font-semibold mt-0.5 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />
-              {formatTime(duration)}
-            </span>
           </div>
 
-          {/* Floating Picture-in-Picture Local Preview (Top Right) or Full Background Preview during PRE_CALL */}
-          <div className={
-            callState === 'PRE_CALL'
-              ? "absolute inset-0 w-full h-full z-0 overflow-hidden"
-              : "absolute top-4 right-4 sm:top-6 sm:right-6 z-20"
-          }>
-            <div className={
-              callState === 'PRE_CALL'
-                ? "w-full h-full relative"
-                : "w-24 h-32 sm:w-36 sm:h-48 rounded-xl border border-white/10 shadow-2xl overflow-hidden bg-slate-900/80 backdrop-blur-md relative transition-transform duration-300 hover:scale-[1.03]"
-            }>
-              {/* Local video element persistently mounted in DOM to prevent document.getElementById('localVideo') null errors */}
+        </div>
+      ) : callType === 'VIDEO' ? (
+        // ----------------------------------------------------
+        // 2. ACTIVE / OUTGOING VIDEO CALL CONTAINER          
+        // ----------------------------------------------------
+        <div className="w-full max-w-5xl h-[78vh] min-h-[500px] rounded-3xl border border-slate-800 bg-slate-900 shadow-2xl relative overflow-hidden transition-all duration-500 animate-scaleUp flex">
+          
+          {/* Main Video Stage */}
+          <div className="flex-1 relative flex items-center justify-center overflow-hidden h-full">
+
+            {/* Main Remote Video Stream or Calling State */}
+            {callState === 'CONNECTED' && hasRemoteVideo ? (
               <video
-                id="localVideo"
-                ref={localVideoRef}
+                ref={remoteVideoRef}
                 autoPlay
                 playsInline
-                muted
-                className={`w-full h-full object-cover ${
-                  videoMode === 'normal' ? 'transform -scale-x-100' : ''
-                } ${
-                  localStream && !isVideoMuted ? 'block' : 'hidden'
-                }`}
+                className="w-full h-full object-cover z-0 absolute inset-0 bg-slate-950"
               />
-
-              {/* Cam muted placeholder persistently mounted in DOM, hidden when camera is active */}
-              <div 
-                className={`w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-400 ${
-                  localStream && !isVideoMuted ? 'hidden' : 'flex'
-                }`}
-              >
-                <VideoOff size={callState === 'PRE_CALL' ? 36 : 20} className="text-slate-500 animate-pulse mb-1" />
-                <span className="text-[8px] uppercase font-bold tracking-wider opacity-60">
-                  {isRtl ? 'كاميرتك مغلقة' : 'Cam Muted'}
-                </span>
-              </div>
-              {isScreenSharing && (
-                <div className="absolute bottom-1.5 left-1.5 bg-emerald-500 text-white rounded px-1 py-0.5 text-[7px] font-bold uppercase tracking-wider flex items-center gap-0.5 shadow">
-                  <Monitor size={6} />
-                  <span>{isRtl ? 'تشارك' : 'Sharing'}</span>
+            ) : (
+              // Calling / Connecting state inside the main canvas
+              <div className="w-full h-full flex flex-col items-center justify-center bg-slate-950/90 relative z-0">
+                <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 rounded-full bg-emerald-500/5 blur-[80px]" />
+                <div className="relative flex items-center justify-center mb-6">
+                  <div className="absolute w-36 h-36 rounded-full border border-emerald-500/20 animate-ping opacity-30" style={{ animationDuration: '3s' }} />
+                  <div className="w-24 h-24 rounded-full bg-gradient-to-tr from-slate-850 to-slate-700 flex items-center justify-center text-white text-3xl font-bold shadow-2xl border border-slate-700">
+                    {displayName ? displayName.charAt(0).toUpperCase() : <User size={36} className="text-slate-400" />}
+                  </div>
                 </div>
-              )}
+                <h3 className="text-lg font-bold tracking-tight text-white mb-2">
+                  {displayName}
+                </h3>
+                <p className="text-xs text-slate-400 flex items-center gap-1.5 bg-slate-900/60 border border-slate-800/80 px-4 py-2 rounded-full">
+                  <Loader2 size={12} className="animate-spin text-emerald-400" />
+                  <span>
+                    {callState === 'OUTGOING'
+                      ? (isRtl ? 'جاري الاتصال...' : 'Calling...')
+                      : (isRtl ? 'بانتظار تغذية الفيديو...' : 'Connecting video...')}
+                  </span>
+                </p>
+              </div>
+            )}
+
+            {/* Top subtle overlay */}
+            <div className="absolute top-0 inset-x-0 h-24 bg-gradient-to-b from-black/70 to-transparent pointer-events-none z-10" />
+
+            {/* Metadata Display overlay (Top Left) */}
+            <div className={`absolute top-4 sm:top-6 z-20 flex flex-col items-start bg-slate-950/50 backdrop-blur-md border border-white/5 px-3 py-2 rounded-xl ${isRtl ? 'right-4 sm:right-6' : 'left-4 sm:left-6'}`}>
+              <span className="text-white text-sm sm:text-base font-bold tracking-tight">
+                {displayName}
+              </span>
+              <span className="text-emerald-400 font-mono text-xs font-semibold mt-0.5 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping inline-block" />
+                {formatTime(duration)}
+              </span>
             </div>
-          </div>
 
-          {/* Floating Control Dock (Bottom Center of Card) */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 w-auto">
-            <div className="flex items-center gap-4 bg-slate-950/70 border border-white/10 px-5 sm:px-6 py-3 rounded-2xl backdrop-blur-md shadow-2xl">
-              
-              {/* MIC MUTED BUTTON */}
-              <button
-                onClick={toggleMute}
-                className={`p-3 rounded-xl border transition-all duration-300 ${
-                  isMuted
-                    ? 'bg-rose-500/20 border-rose-500/30 text-rose-400 hover:bg-rose-500/30'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-                title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
-              >
-                {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
-              </button>
+            {/* Floating Picture-in-Picture Local Preview (Top Corner) */}
+            <div className={`absolute top-4 sm:top-6 z-20 ${isRtl ? 'left-4 sm:left-6' : 'right-4 sm:right-6'}`}>
+              <div className="w-24 h-32 sm:w-36 sm:h-48 rounded-xl border border-white/10 shadow-2xl overflow-hidden bg-slate-900/80 backdrop-blur-md relative transition-transform duration-300 hover:scale-[1.03]">
+                {/* Local video element */}
+                <video
+                  id="localVideo"
+                  ref={attachLocalStream}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`w-full h-full object-cover ${
+                    videoMode === 'normal' ? 'transform -scale-x-100' : ''
+                  } ${localStream && !isVideoMuted ? 'block' : 'hidden'}`}
+                />
 
-              {/* CAMERA MUTED BUTTON */}
-              <button
-                onClick={toggleVideo}
-                className={`p-3 rounded-xl border transition-all duration-300 ${
-                  isVideoMuted
-                    ? 'bg-rose-500/20 border-rose-500/30 text-rose-400 hover:bg-rose-500/30'
-                    : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
-                }`}
-                title={isVideoMuted ? 'Start Video' : 'Stop Video'}
-              >
-                {isVideoMuted ? <VideoOff size={18} /> : <Video size={18} />}
-              </button>
+                {/* Cam muted placeholder */}
+                <div 
+                  className={`w-full h-full flex flex-col items-center justify-center bg-slate-800 text-slate-400 ${
+                    localStream && !isVideoMuted ? 'hidden' : 'flex'
+                  }`}
+                >
+                  <VideoOff size={20} className="text-slate-500 animate-pulse mb-1" />
+                  <span className="text-[8px] uppercase font-bold tracking-wider opacity-60">
+                    {isRtl ? 'كاميرتك مغلقة' : 'Cam Muted'}
+                  </span>
+                </div>
+                {isScreenSharing && (
+                  <div className="absolute bottom-1.5 left-1.5 bg-emerald-500 text-white rounded px-1 py-0.5 text-[7px] font-bold uppercase tracking-wider flex items-center gap-0.5 shadow">
+                    <Monitor size={6} />
+                    <span>{isRtl ? 'تشارك' : 'Sharing'}</span>
+                  </div>
+                )}
+              </div>
+            </div>
 
-              {/* MONITOR SCREEN SHARE BUTTON */}
-              {callState !== 'PRE_CALL' && (
+            {/* Floating Control Dock (Bottom Center of Card) */}
+            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 w-auto">
+              <div className="flex items-center gap-3 sm:gap-4 bg-slate-950/70 border border-white/10 px-4 sm:px-6 py-3 rounded-2xl backdrop-blur-md shadow-2xl">
+                
+                {/* MIC MUTED BUTTON */}
+                <button
+                  onClick={toggleMute}
+                  className={`p-3 rounded-xl border transition-all duration-300 ${
+                    isMuted
+                      ? 'bg-rose-500/20 border-rose-500/30 text-rose-400 hover:bg-rose-500/30'
+                      : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                  }`}
+                  title={isMuted ? 'Unmute Mic' : 'Mute Mic'}
+                >
+                  {isMuted ? <MicOff size={18} /> : <Mic size={18} />}
+                </button>
+
+                {/* CAMERA MUTED BUTTON */}
+                <button
+                  onClick={toggleVideo}
+                  className={`p-3 rounded-xl border transition-all duration-300 ${
+                    isVideoMuted
+                      ? 'bg-rose-500/20 border-rose-500/30 text-rose-400 hover:bg-rose-500/30'
+                      : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                  }`}
+                  title={isVideoMuted ? 'Start Video' : 'Stop Video'}
+                >
+                  {isVideoMuted ? <VideoOff size={18} /> : <Video size={18} />}
+                </button>
+
+                {/* MONITOR SCREEN SHARE BUTTON */}
                 <button
                   onClick={toggleScreenShare}
                   disabled={callState !== 'CONNECTED'}
@@ -314,109 +565,21 @@ export const CallOverlay: React.FC = () => {
                 >
                   {isScreenSharing ? <MonitorOff size={18} /> : <Monitor size={18} />}
                 </button>
-              )}
 
-              {/* VIDEO EFFECTS POPUP MENU */}
-              <div className="relative">
+                {/* SIDE SETTINGS BUTTON (TEAMS STYLE DEVICE & EFFECTS DRAWER) */}
                 <button
-                  id="toggleBlurBtn"
-                  onClick={() => setShowEffectsMenu(!showEffectsMenu)}
-                  disabled={(callState !== 'CONNECTED' && callState !== 'OUTGOING' && callState !== 'PRE_CALL') || isVideoMuted}
+                  onClick={() => setShowSideSettings(!showSideSettings)}
                   className={`p-3 rounded-xl border transition-all duration-300 ${
-                    videoMode !== 'normal'
+                    showSideSettings || videoMode !== 'normal'
                       ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/30'
-                      : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed'
+                      : 'bg-slate-900/80 border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
                   }`}
-                  title={isRtl ? 'مؤثرات الفيديو' : 'Video Effects'}
+                  title={isRtl ? 'إعدادات الأجهزة والمؤثرات' : 'Device & Effect Settings'}
                 >
-                  {isBlurLoading ? (
-                    <Loader2 size={18} className="animate-spin text-emerald-400" />
-                  ) : (
-                    <Sparkles size={18} />
-                  )}
+                  <Sliders size={18} />
                 </button>
 
-                {/* Floating Glassmorphic Menu */}
-                {showEffectsMenu && (
-                  <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-30 w-48 bg-slate-950/90 border border-slate-800 p-2 rounded-2xl backdrop-blur-xl shadow-2xl flex flex-col gap-1.5 animate-scaleUp">
-                    <span className="text-[10px] text-slate-400 font-semibold px-2.5 py-1 tracking-wider uppercase border-b border-slate-900/80 mb-1 block">
-                      {isRtl ? 'مؤثرات الكاميرا' : 'Camera Effects'}
-                    </span>
-                    
-                    {/* Normal Camera */}
-                    <button
-                      onClick={() => {
-                        setVideoEffectMode('normal');
-                        setShowEffectsMenu(false);
-                      }}
-                      className={`flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
-                        videoMode === 'normal'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : 'text-slate-300 hover:bg-slate-900 hover:text-white border border-transparent'
-                      }`}
-                    >
-                      <Video size={14} />
-                      <span>{isRtl ? 'كاميرا عادية' : 'Normal Camera'}</span>
-                    </button>
-
-                    {/* Background Blur */}
-                    <button
-                      onClick={() => {
-                        setVideoEffectMode('blur');
-                        setShowEffectsMenu(false);
-                      }}
-                      className={`flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
-                        videoMode === 'blur'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : 'text-slate-300 hover:bg-slate-900 hover:text-white border border-transparent'
-                      }`}
-                    >
-                      <Sparkles size={14} />
-                      <span>{isRtl ? 'تمويه الخلفية' : 'Blur Background'}</span>
-                    </button>
-
-                    {/* Virtual Background */}
-                    <button
-                      onClick={() => {
-                        setVideoEffectMode('bg');
-                        setShowEffectsMenu(false);
-                      }}
-                      className={`flex items-center gap-2.5 w-full text-left px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 ${
-                        videoMode === 'bg'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : 'text-slate-300 hover:bg-slate-900 hover:text-white border border-transparent'
-                      }`}
-                    >
-                      <ImageIcon size={14} />
-                      <span>{isRtl ? 'الخلفية الافتراضية' : 'Virtual Background'}</span>
-                    </button>
-                  </div>
-                )}
-              </div>
-
-
-              {/* END CALL / PRE-CALL ACTION BUTTONS */}
-              {callState === 'PRE_CALL' ? (
-                <>
-                  {/* CANCEL LOBBY BUTTON */}
-                  <button
-                    onClick={cancelPreCall}
-                    className="p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-xl border border-slate-700 transition-all duration-300 transform active:scale-95 flex items-center justify-center"
-                    title={isRtl ? 'إلغاء' : 'Cancel'}
-                  >
-                    <PhoneOff size={18} className="text-rose-400" />
-                  </button>
-
-                  {/* PROCEED / START CALL BUTTON */}
-                  <button
-                    onClick={proceedToCall}
-                    className="p-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl border border-emerald-500/30 shadow-lg transition-all duration-300 transform active:scale-95 flex items-center justify-center animate-pulse"
-                    title={isRtl ? 'بدء الاتصال' : 'Start Call'}
-                  >
-                    <Phone size={18} />
-                  </button>
-                </>
-              ) : (
+                {/* END CALL ACTION BUTTON */}
                 <button
                   onClick={endCall}
                   className="p-3.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-lg transition-all duration-300 transform active:scale-95 flex items-center justify-center"
@@ -424,15 +587,131 @@ export const CallOverlay: React.FC = () => {
                 >
                   <PhoneOff size={18} />
                 </button>
-              )}
 
+              </div>
             </div>
+
           </div>
+
+          {/* TEAMS-STYLE IN-CALL SIDE SETTINGS PANEL (SIDE-BY-SIDE WITH VIDEO) */}
+          {showSideSettings && (
+            <div className={`w-80 sm:w-88 bg-slate-950/95 backdrop-blur-2xl border-slate-800 z-30 flex flex-col p-5 shadow-2xl overflow-y-auto animate-fadeIn ${isRtl ? 'border-r' : 'border-l'}`}>
+              <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-5">
+                <div className="flex items-center gap-2">
+                  <Sliders size={16} className="text-emerald-400" />
+                  <h3 className="text-sm font-bold text-white">
+                    {isRtl ? 'إعدادات الأجهزة' : 'Device Settings'}
+                  </h3>
+                </div>
+                <button
+                  onClick={() => setShowSideSettings(false)}
+                  className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className="flex flex-col gap-5 flex-1">
+                {/* Audio Device Selector */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Mic size={13} className="text-emerald-400" />
+                    {isRtl ? 'الميكروفون' : 'Microphone'}
+                  </label>
+                  <select
+                    value={selectedAudioDeviceId || ''}
+                    onChange={(e) => changeAudioDevice(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    {audioDevices.map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `${isRtl ? 'ميكروفون' : 'Microphone'} ${device.deviceId.slice(0, 4)}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Video Device Selector */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Video size={13} className="text-emerald-400" />
+                    {isRtl ? 'الكاميرا' : 'Camera'}
+                  </label>
+                  <select
+                    value={selectedVideoDeviceId || ''}
+                    onChange={(e) => changeVideoDevice(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    {videoDevices.map((device) => (
+                      <option key={device.deviceId} value={device.deviceId}>
+                        {device.label || `${isRtl ? 'كاميرا' : 'Camera'} ${device.deviceId.slice(0, 4)}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Video Background Filters & Effects */}
+                <div className="flex flex-col gap-2 pt-2 border-t border-slate-800/80">
+                  <label className="text-[11px] font-semibold text-slate-300 flex items-center gap-1.5">
+                    <Sparkles size={13} className="text-amber-400" />
+                    {isRtl ? 'مؤثرات الخلفية' : 'Background Effects'}
+                  </label>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <button
+                      onClick={() => setVideoEffectMode('normal')}
+                      className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${
+                        videoMode === 'normal'
+                          ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-sm'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <Video size={15} className="mb-1" />
+                      <span className="text-[10px] font-semibold">{isRtl ? 'عادي' : 'None'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setVideoEffectMode('blur')}
+                      className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${
+                        videoMode === 'blur'
+                          ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-sm'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      {isBlurLoading ? (
+                        <Loader2 size={15} className="animate-spin text-emerald-400 mb-1" />
+                      ) : (
+                        <Sparkles size={15} className="mb-1" />
+                      )}
+                      <span className="text-[10px] font-semibold">{isRtl ? 'تمويه' : 'Blur'}</span>
+                    </button>
+
+                    <button
+                      onClick={() => setVideoEffectMode('bg')}
+                      className={`flex flex-col items-center justify-center p-2.5 rounded-xl border text-center transition-all ${
+                        videoMode === 'bg'
+                          ? 'bg-emerald-500/10 border-emerald-500/50 text-emerald-400 shadow-sm'
+                          : 'bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/60'
+                      }`}
+                    >
+                      <ImageIcon size={15} className="mb-1" />
+                      <span className="text-[10px] font-semibold">{isRtl ? 'افتراضية' : 'Virtual'}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-800 text-[10px] text-slate-500 flex items-center justify-center gap-1">
+                <ShieldCheck size={12} className="text-slate-400" />
+                <span>{isRtl ? 'إعدادات فورية أثناء المكالمة' : 'Realtime device switching'}</span>
+              </div>
+            </div>
+          )}
 
         </div>
       ) : (
         // ----------------------------------------------------
-        // 2. AUDIO CALL OR INCOMING CALL CARD CONTAINER       
+        // 3. AUDIO CALL OR INCOMING CALL CARD CONTAINER       
         // ----------------------------------------------------
         <div className="w-full max-w-sm py-12 px-6 rounded-3xl border border-slate-800 bg-slate-900/90 backdrop-blur-xl shadow-2xl flex flex-col items-center text-center relative z-10 transition-all duration-500 animate-scaleUp overflow-hidden">
           
@@ -557,7 +836,7 @@ export const CallOverlay: React.FC = () => {
       )}
 
       {/* Unified Security Badge below call container */}
-      <div className="absolute bottom-4 flex items-center gap-1.5 text-[9px] text-slate-500 tracking-wider">
+      <div className="absolute bottom-3 flex items-center gap-1.5 text-[9px] text-slate-500 tracking-wider">
         <svg className="w-3 h-3 text-slate-600" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
         </svg>
