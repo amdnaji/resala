@@ -71,23 +71,37 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Serve SPA static files from wwwroot
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
+// Serve user uploads from configured storage path (optional)
 var storagePath = builder.Configuration.GetValue<string>("Storage:Path");
-if (!string.IsNullOrEmpty(storagePath))
+if (!string.IsNullOrWhiteSpace(storagePath))
 {
-    if (!Directory.Exists(storagePath))
+    try
     {
-        Directory.CreateDirectory(storagePath);
+        if (!Directory.Exists(storagePath))
+        {
+            Directory.CreateDirectory(storagePath);
+        }
+        app.UseStaticFiles(new StaticFileOptions
+        {
+            FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(storagePath),
+            RequestPath = "/uploads"
+        });
+        Console.WriteLine($"[Storage] File storage successfully initialized at: {storagePath}");
     }
-    app.UseStaticFiles(new StaticFileOptions
+    catch (Exception ex)
     {
-        FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(storagePath),
-        RequestPath = "/uploads"
-    });
+        Console.WriteLine($"[Storage Warning] Failed to initialize storage directory '{storagePath}': {ex.Message}. File storage will be disabled.");
+    }
 }
 else
 {
-    app.UseStaticFiles();
+    Console.WriteLine("[Storage] Storage:Path is empty or null. File storage is disabled.");
 }
+
 app.UseCors("AllowAll");
 app.UseHttpsRedirection();
 
@@ -103,6 +117,9 @@ app.MapGet("/api/auth/latest-reset-link", () =>
 });
 
 app.MapHub<Resala.Backend.Hubs.ChatHub>("/hubs/chat");
+
+// Fallback to index.html for client-side SPA routing (React Router)
+app.MapFallbackToFile("index.html");
 
 using (var scope = app.Services.CreateScope())
 {

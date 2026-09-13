@@ -120,9 +120,9 @@ export const ChatInfoSidebar: React.FC<ChatInfoSidebarProps> = ({ chat, onClose,
       });
       // SignalR will trigger groupupdated, which refreshes Sidebar
       // We might need to refresh local state if not synced
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to upload group picture:', error);
-      toast.error(t('common.upload_failed') || 'Failed to upload group picture.');
+      toast.error(error?.response?.data?.message || t('common.upload_failed') || 'Failed to upload group picture.');
     } finally {
       setIsUploading(false);
     }

@@ -39,6 +39,8 @@ namespace Resala.Backend.Services
             _containerClient = blobServiceClient.GetBlobContainerClient(_containerName);
         }
 
+        public bool IsConfigured => _containerClient != null;
+
         private async Task EnsureContainerExistsAsync()
         {
             if (_containerInitialized) return;

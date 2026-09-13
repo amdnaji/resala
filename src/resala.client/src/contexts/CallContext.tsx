@@ -539,12 +539,11 @@ export const CallProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       }
     }
 
-    // 2. Setup RTCPeerConnection (Local STUN server as primary, Google STUN as fallback)
+    // 2. Setup RTCPeerConnection using internal STUN server exclusively (No external servers)
+    const stunHost = window.location.hostname || 'localhost';
     const pc = new RTCPeerConnection({
       iceServers: [
-        { urls: 'stun:localhost:3478' },
-        { urls: 'stun:127.0.0.1:3478' },
-        { urls: 'stun:stun.l.google.com:19302' }
+        { urls: `stun:${stunHost}:3478` }
       ]
     });
     peerConnectionRef.current = pc;

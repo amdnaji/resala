@@ -23,19 +23,25 @@ namespace Resala.Backend.Services
             _configuration = configuration;
         }
 
+        public bool IsConfigured
+        {
+            get
+            {
+                var storagePath = _configuration.GetValue<string>("Storage:Path");
+                return !string.IsNullOrWhiteSpace(storagePath);
+            }
+        }
+
         private string GetStorageBasePath()
         {
-            var storagePath = _configuration.GetValue<string>("Storage:Path");
-            if (string.IsNullOrEmpty(storagePath))
-            {
-                var webRootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-                storagePath = Path.Combine(webRootPath, "uploads");
-            }
-            return storagePath;
+            return _configuration.GetValue<string>("Storage:Path") ?? string.Empty;
         }
 
         public async Task<string> UploadFileAsync(IFormFile file, string directory)
         {
+            if (!IsConfigured)
+                throw new InvalidOperationException("File storage is not configured or disabled on this server.");
+
             if (file == null || file.Length == 0)
                 throw new ArgumentException("File is empty or null.");
 
@@ -64,6 +70,9 @@ namespace Resala.Backend.Services
 
         public async Task<string> UploadAttachmentAsync(IFormFile file)
         {
+            if (!IsConfigured)
+                throw new InvalidOperationException("File storage is not configured or disabled on this server.");
+
             if (file == null || file.Length == 0)
                 throw new ArgumentException("File is empty or null.");
 
@@ -128,7 +137,7 @@ namespace Resala.Backend.Services
 
         public Task DeleteFileAsync(string fileUrl)
         {
-            if (string.IsNullOrEmpty(fileUrl)) return Task.CompletedTask;
+            if (!IsConfigured || string.IsNullOrEmpty(fileUrl)) return Task.CompletedTask;
 
             try
             {
@@ -151,7 +160,6 @@ namespace Resala.Backend.Services
                 {
                     relativePath = localPath.TrimStart('/');
                 }
-
                 var filePath = Path.Combine(storagePath, relativePath.Replace('/', Path.DirectorySeparatorChar));
                 
                 if (File.Exists(filePath))

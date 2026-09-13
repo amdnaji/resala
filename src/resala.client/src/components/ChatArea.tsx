@@ -35,7 +35,14 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showChatInfo, setShowChatInfo] = useState(false);
   const [activeMobileMenuMessage, setActiveMobileMenuMessage] = useState<any>(null);
+  const [isStorageEnabled, setIsStorageEnabled] = useState<boolean | null>(null);
   const { t, i18n } = useTranslation();
+
+  useEffect(() => {
+    api.get('/files/status')
+      .then(res => setIsStorageEnabled(res.data?.isStorageEnabled ?? false))
+      .catch(() => setIsStorageEnabled(false));
+  }, []);
 
   // Determine chat name
   let chatName = chat.title;
@@ -265,6 +272,12 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     
+    if (isStorageEnabled === false) {
+      toast.error(t('chat.storage_disabled', 'خاصية رفع الملفات غير مفعلة على هذا الخادم'));
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setIsUploading(true);
     const files = Array.from(e.target.files);
     
@@ -279,8 +292,10 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         setPendingAttachments(prev => [...prev, response.data]);
-      } catch (error) {
+      } catch (error: any) {
         console.error('File upload failed:', error);
+        const errMsg = error?.response?.data?.message || t('chat.upload_failed', 'تعذر رفع الملف، قد تكون خاصية التخزين غير مفعلة');
+        toast.error(typeof errMsg === 'string' ? errMsg : t('chat.upload_failed', 'تعذر رفع الملف'));
       }
     }
     
@@ -856,14 +871,16 @@ export const ChatArea: React.FC<ChatAreaProps> = ({ chat, onBack }) => {
                   </div>
                 )}
                 <form onSubmit={handleSendMessage} className="flex items-center space-x-3 rtl:space-x-reverse hidden-scrollbar relative z-10">
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
-                    title="Attach file"
-                  >
-                    <Paperclip size={24} />
-                  </button>
+                  {isStorageEnabled !== false && (
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors"
+                      title={t('chat.attach_file', 'Attach file')}
+                    >
+                      <Paperclip size={24} />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setShowEmojiPicker(!showEmojiPicker)}

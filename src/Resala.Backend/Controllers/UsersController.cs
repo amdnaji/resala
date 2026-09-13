@@ -48,6 +48,9 @@ namespace Resala.Backend.Controllers
         [HttpPost("profile-picture")]
         public async Task<IActionResult> UploadProfilePicture([FromForm] IFormFile file, [FromServices] Resala.Backend.Services.IStorageService storageService)
         {
+            if (!storageService.IsConfigured)
+                return BadRequest(new { message = "خاصية رفع الملفات غير مفعلة على هذا الخادم (File storage is disabled or not configured)." });
+
             var user = await _context.Users.FindAsync(CurrentUserId);
             if (user == null) return NotFound();
 
@@ -83,6 +86,9 @@ namespace Resala.Backend.Controllers
             [FromServices] Resala.Backend.Services.IStorageService storageService,
             [FromServices] Microsoft.Extensions.Configuration.IConfiguration configuration)
         {
+            if (!storageService.IsConfigured)
+                return BadRequest(new { message = "خاصية رفع الملفات غير مفعلة على هذا الخادم (File storage is disabled or not configured)." });
+
             var user = await _context.Users.FindAsync(CurrentUserId);
             if (user == null) return NotFound();
 
