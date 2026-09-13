@@ -63,7 +63,8 @@ namespace Resala.Backend.Controllers
                 return BadRequest("Invalid file type.");
 
             // Optionally delete old profile picture
-            if (!string.IsNullOrEmpty(user.ProfilePictureUrl) && user.ProfilePictureUrl.Contains("/uploads/"))
+            if (!string.IsNullOrEmpty(user.ProfilePictureUrl) && 
+                (user.ProfilePictureUrl.Contains("/uploads/") || user.ProfilePictureUrl.Contains(".blob.core.windows.net")))
             {
                 await storageService.DeleteFileAsync(user.ProfilePictureUrl);
             }
@@ -171,7 +172,8 @@ namespace Resala.Backend.Controllers
                     };
                     
                     // Optionally delete old profile picture
-                    if (!string.IsNullOrEmpty(user.ProfilePictureUrl) && user.ProfilePictureUrl.Contains("/uploads/"))
+                    if (!string.IsNullOrEmpty(user.ProfilePictureUrl) && 
+                        (user.ProfilePictureUrl.Contains("/uploads/") || user.ProfilePictureUrl.Contains(".blob.core.windows.net")))
                     {
                         await storageService.DeleteFileAsync(user.ProfilePictureUrl);
                     }

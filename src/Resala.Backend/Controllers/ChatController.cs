@@ -95,6 +95,18 @@ namespace Resala.Backend.Controllers
                 UnreadCount = c.Messages.Count(m => m.SenderId != userId && !m.IsRead)
             }).ToList();
 
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            foreach (var chat in result)
+            {
+                if (chat.LastMessage?.Attachments != null)
+                {
+                    foreach (var att in chat.LastMessage.Attachments)
+                    {
+                        att.FileUrl = AttachmentUrlHelper.FormatAttachmentUrl(att.FileUrl, baseUrl);
+                    }
+                }
+            }
+
             return Ok(result);
         }
 
@@ -333,6 +345,15 @@ namespace Resala.Backend.Controllers
                 })
                 .ToListAsync();
 
+            var baseUrl = $"{Request.Scheme}://{Request.Host}";
+            foreach (var msg in messages)
+            {
+                foreach (var att in msg.Attachments)
+                {
+                    att.FileUrl = AttachmentUrlHelper.FormatAttachmentUrl(att.FileUrl, baseUrl);
+                }
+            }
+
             messages.Reverse(); // Return oldest to newest for UI display
 
             return Ok(messages);
@@ -369,6 +390,12 @@ namespace Resala.Backend.Controllers
                 })
                 .ToListAsync();
 
+            var requestBaseUrl = $"{Request.Scheme}://{Request.Host}";
+            foreach (var att in attachments)
+            {
+                att.FileUrl = AttachmentUrlHelper.FormatAttachmentUrl(att.FileUrl, requestBaseUrl);
+            }
+
             return Ok(attachments);
         }
 
@@ -396,7 +423,8 @@ namespace Resala.Backend.Controllers
                 return BadRequest("Invalid file type.");
 
             // Optionally delete old picture
-            if (!string.IsNullOrEmpty(chat.ProfilePictureUrl) && chat.ProfilePictureUrl.Contains("/uploads/"))
+            if (!string.IsNullOrEmpty(chat.ProfilePictureUrl) && 
+                (chat.ProfilePictureUrl.Contains("/uploads/") || chat.ProfilePictureUrl.Contains(".blob.core.windows.net")))
             {
                 await storageService.DeleteFileAsync(chat.ProfilePictureUrl);
             }
