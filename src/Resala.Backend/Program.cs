@@ -4,9 +4,25 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// 1. Add Configuration
+// 1. Configure Cascading Configuration Pipeline:
+// appsettings.json -> appsettings.{Env}.json -> User Secrets (Dev) -> appsettings.config.json (Outside Git) -> Environment Variables
+builder.Configuration
+    .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+    .AddJsonFile($"appsettings.{builder.Environment.EnvironmentName}.json", optional: true, reloadOnChange: true);
+
+if (builder.Environment.IsDevelopment())
+{
+    builder.Configuration.AddUserSecrets<Program>(optional: true);
+}
+
+var customConfigPath = Environment.GetEnvironmentVariable("RESALA_CONFIG_PATH")
+    ?? Path.Combine(builder.Environment.ContentRootPath, "appsettings.config.json");
+
+builder.Configuration.AddJsonFile(customConfigPath, optional: true, reloadOnChange: true);
+builder.Configuration.AddEnvironmentVariables();
+
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+    ?? "Host=localhost;Database=resala_chat;Username=postgres;Password=admin";
 
 // 2. Add Database Context
 builder.Services.AddDbContext<AppDbContext>(options =>
@@ -53,6 +69,8 @@ else
 }
 
 builder.Services.AddScoped<Resala.Backend.Services.ILdapService, Resala.Backend.Services.LdapService>();
+builder.Services.AddScoped<Resala.Backend.Services.IConfigurationInspectorService, Resala.Backend.Services.ConfigurationInspectorService>();
+builder.Services.AddScoped<Resala.Backend.Services.ISetupService, Resala.Backend.Services.SetupService>();
 builder.Services.AddHostedService<Resala.Backend.Services.StunHostedService>();
 builder.Services.AddSingleton<Resala.Backend.Services.ICallSessionTracker, Resala.Backend.Services.InMemoryCallSessionTracker>();
 builder.Services.AddSignalR();
@@ -121,28 +139,40 @@ app.MapHub<Resala.Backend.Hubs.ChatHub>("/hubs/chat");
 // Fallback to index.html for client-side SPA routing (React Router)
 app.MapFallbackToFile("index.html");
 
-using (var scope = app.Services.CreateScope())
+try
 {
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<Resala.Backend.Data.AppDbContext>();
-    var users = db.Users.Where(u => !u.EmailConfirmed).ToList();
-    if (users.Any())
+    if (db.Database.CanConnect())
     {
-        foreach (var u in users) u.EmailConfirmed = true;
-        db.SaveChanges();
-        Console.WriteLine($"[DevTask] Auto-confirmed {users.Count} users.");
-    }
-
-    // Auto-set DisplayName for users who have it empty
-    var usersWithoutDisplayName = db.Users.Where(u => u.DisplayName == null || u.DisplayName == "").ToList();
-    if (usersWithoutDisplayName.Any())
-    {
-        foreach (var u in usersWithoutDisplayName)
+        var users = db.Users.Where(u => !u.EmailConfirmed).ToList();
+        if (users.Any())
         {
-            u.DisplayName = u.Email?.Split('@')[0] ?? u.UserName?.Split('@')[0] ?? "User";
+            foreach (var u in users) u.EmailConfirmed = true;
+            db.SaveChanges();
+            Console.WriteLine($"[DevTask] Auto-confirmed {users.Count} users.");
         }
-        db.SaveChanges();
-        Console.WriteLine($"[DevTask] Auto-set DisplayName for {usersWithoutDisplayName.Count} users.");
+
+        // Auto-set DisplayName for users who have it empty
+        var usersWithoutDisplayName = db.Users.Where(u => u.DisplayName == null || u.DisplayName == "").ToList();
+        if (usersWithoutDisplayName.Any())
+        {
+            foreach (var u in usersWithoutDisplayName)
+            {
+                u.DisplayName = u.Email?.Split('@')[0] ?? u.UserName?.Split('@')[0] ?? "User";
+            }
+            db.SaveChanges();
+            Console.WriteLine($"[DevTask] Auto-set DisplayName for {usersWithoutDisplayName.Count} users.");
+        }
     }
+    else
+    {
+        Console.WriteLine("[Setup] Database is not currently reachable. The setup wizard is ready at /setup");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[Setup] Database initialization check deferred: {ex.Message}");
 }
 
 app.Run();

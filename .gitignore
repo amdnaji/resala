@@ -33,6 +33,7 @@ yarn-error.log*
 .env.production.local
 dist/
 build/
+wwwroot/
 .DS_Store
 
 # Resala Storage (local files)
@@ -40,3 +41,10 @@ storage/
 resala_storage/
 docs/assets/*.webp # Optional: if you want to exclude media, but here we want the demo.
 !docs/assets/demo.webp # Keep the demo
+
+# Configuration files out of Git
+appsettings.config.json
+appsettings.*.config.json
+appsettings.Local.json
+config/appsettings.config.json
+
