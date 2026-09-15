@@ -236,7 +236,7 @@ export const SetupPage: React.FC = () => {
   const renderSourceBadge = (info?: ConfigurationSourceInfo) => {
     if (!info || info.sourceType === 'NotSet') {
       return (
-        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-zinc-800 text-zinc-400 border border-zinc-700">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 border border-gray-200">
           Not Set
         </span>
       );
@@ -245,30 +245,30 @@ export const SetupPage: React.FC = () => {
     switch (info.sourceType) {
       case 'CustomConfig':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-950/80 text-emerald-300 border border-emerald-500/40">
-            <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-400" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
+            <CheckCircle2 className="w-3 h-3 mr-1 text-emerald-600" />
             Custom (appsettings.config.json)
           </span>
         );
       case 'UserSecrets':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-950/80 text-indigo-300 border border-indigo-500/40">
-            <Lock className="w-3 h-3 mr-1 text-indigo-400" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 shadow-sm">
+            <Lock className="w-3 h-3 mr-1 text-indigo-600" />
             User Secrets (secrets.json)
           </span>
         );
       case 'Environment':
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-950/80 text-amber-300 border border-amber-500/40">
-            <Server className="w-3 h-3 mr-1 text-amber-400" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200 shadow-sm">
+            <Server className="w-3 h-3 mr-1 text-amber-600" />
             Environment Variable
           </span>
         );
       case 'AppSettings':
       default:
         return (
-          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-sky-950/80 text-sky-300 border border-sky-500/40">
-            <FileCode className="w-3 h-3 mr-1 text-sky-400" />
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200 shadow-sm">
+            <FileCode className="w-3 h-3 mr-1 text-blue-600" />
             Default ({info.providerName || 'appsettings.json'})
           </span>
         );
@@ -279,14 +279,14 @@ export const SetupPage: React.FC = () => {
     { id: 1, name: 'Database', icon: Database },
     { id: 2, name: 'Storage', icon: HardDrive },
     { id: 3, name: 'Authentication', icon: ShieldCheck },
-    { id: 4, name: 'Smart Inspector & Save', icon: Sparkles },
+    { id: 4, name: 'Review & Initialize', icon: Sparkles },
   ];
 
   if (statusLoading) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-4">
-        <Loader2 className="w-10 h-10 text-emerald-500 animate-spin mb-4" />
-        <p className="text-zinc-400 font-medium">Checking Resala Configuration Status...</p>
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+        <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+        <p className="text-gray-600 font-medium">Checking Resala Configuration Status...</p>
       </div>
     );
   }
@@ -294,80 +294,87 @@ export const SetupPage: React.FC = () => {
   // Completion Success View
   if (setupCompletedSuccessfully) {
     return (
-      <div className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center p-6">
-        <div className="max-w-md w-full bg-zinc-900 border border-emerald-500/30 rounded-2xl p-8 text-center shadow-2xl">
-          <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle2 className="w-8 h-8" />
+      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="flex justify-center mb-6">
+            <div className="p-1 bg-white rounded-2xl shadow-sm border border-gray-100">
+              <img src="/logo.png" alt="Resala Logo" className="w-16 h-16 object-contain" />
+            </div>
           </div>
-          <h2 className="text-2xl font-bold mb-2">Setup Complete!</h2>
-          <p className="text-zinc-400 text-sm mb-6 leading-relaxed">
-            Resala has been successfully configured. Your settings have been written to{' '}
-            <code className="bg-zinc-800 text-emerald-300 px-1.5 py-0.5 rounded text-xs font-mono">
-              appsettings.config.json
-            </code>{' '}
-            outside Git, and database migrations have finished running.
-          </p>
-          <div className="bg-zinc-950/60 border border-zinc-800 rounded-xl p-4 mb-6 text-left text-xs space-y-2">
-            <div className="flex justify-between">
-              <span className="text-zinc-400">Database:</span>
-              <span className="text-zinc-200 font-mono">{dbConfig.database} ({dbConfig.host})</span>
+          <div className="bg-white py-8 px-6 shadow-xl sm:rounded-2xl sm:px-10 border border-gray-100 text-center">
+            <div className="w-14 h-14 bg-emerald-50 border border-emerald-200 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-4">
+              <CheckCircle2 className="w-8 h-8" />
             </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-400">Storage Provider:</span>
-              <span className="text-zinc-200 font-mono">{storageConfig.provider}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-zinc-400">Auth Mode:</span>
-              <span className="text-zinc-200 font-mono">{authMode}</span>
-            </div>
-            {authMode === 'Standalone' && (
+            <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Setup Complete!</h2>
+            <p className="text-gray-600 text-sm mb-6 leading-relaxed">
+              Resala has been successfully configured. Your settings have been written to{' '}
+              <code className="bg-gray-100 text-blue-600 px-1.5 py-0.5 rounded text-xs font-mono font-semibold">
+                appsettings.config.json
+              </code>{' '}
+              outside Git, and database migrations have finished running.
+            </p>
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6 text-left text-xs space-y-2">
               <div className="flex justify-between">
-                <span className="text-zinc-400">Admin Account:</span>
-                <span className="text-zinc-200 font-mono">{adminUser.email}</span>
+                <span className="text-gray-500 font-medium">Database:</span>
+                <span className="text-gray-800 font-mono font-semibold">{dbConfig.database} ({dbConfig.host})</span>
               </div>
-            )}
+              <div className="flex justify-between">
+                <span className="text-gray-500 font-medium">Storage Provider:</span>
+                <span className="text-gray-800 font-mono font-semibold">{storageConfig.provider}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500 font-medium">Auth Mode:</span>
+                <span className="text-gray-800 font-mono font-semibold">{authMode}</span>
+              </div>
+              {authMode === 'Standalone' && (
+                <div className="flex justify-between">
+                  <span className="text-gray-500 font-medium">Admin Account:</span>
+                  <span className="text-gray-800 font-mono font-semibold">{adminUser.email}</span>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={() => navigate('/login')}
+              className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
+            >
+              Go to Resala Login
+            </button>
           </div>
-          <button
-            onClick={() => navigate('/login')}
-            className="w-full py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded-xl transition duration-200 shadow-lg shadow-emerald-600/20"
-          >
-            Go to Resala Login
-          </button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white selection:bg-emerald-500 selection:text-white">
-      {/* Header Banner */}
-      <header className="border-b border-zinc-800 bg-zinc-900/50 backdrop-blur sticky top-0 z-20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
+    <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col justify-between">
+      {/* Top Brand Header */}
+      <header className="bg-white border-b border-gray-200/80 sticky top-0 z-20 shadow-sm">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-3 rtl:space-x-reverse">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-500 flex items-center justify-center font-bold text-lg shadow-md shadow-emerald-600/30">
-              R
+            <div className="p-1 bg-white rounded-xl shadow-sm border border-gray-100 flex items-center justify-center">
+              <img src="/logo.png" alt="Resala Logo" className="w-9 h-9 object-contain" />
             </div>
             <div>
-              <h1 className="text-lg font-bold tracking-tight">Resala Platform Setup</h1>
-              <p className="text-xs text-zinc-400">External Configuration & Installation Wizard</p>
+              <h1 className="text-base font-bold text-gray-900 tracking-tight">Resala Platform Setup</h1>
+              <p className="text-xs text-gray-500">System Configuration & Initial Onboarding</p>
             </div>
           </div>
           <div className="flex items-center space-x-2 rtl:space-x-reverse">
             {setupStatus?.isSetupCompleted ? (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-950 text-emerald-400 border border-emerald-600/30">
-                <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-sm">
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1 text-emerald-600" />
                 Active & Configured
               </span>
             ) : (
-              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-950/80 text-amber-300 border border-amber-500/30">
-                <AlertCircle className="w-3.5 h-3.5 mr-1" />
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 shadow-sm">
+                <AlertCircle className="w-3.5 h-3.5 mr-1 text-amber-600" />
                 Initial Setup Required
               </span>
             )}
             <button
               onClick={loadStatus}
               title="Refresh status"
-              className="p-2 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition"
+              className="p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition"
             >
               <RefreshCw className="w-4 h-4" />
             </button>
@@ -375,10 +382,11 @@ export const SetupPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
+      {/* Main Body */}
+      <main className="max-w-4xl mx-auto w-full px-4 sm:px-6 py-8 flex-grow">
         {/* Wizard Stepper */}
         <div className="mb-8">
-          <div className="flex items-center justify-between max-w-2xl mx-auto">
+          <div className="flex items-center justify-between max-w-xl mx-auto">
             {steps.map((step, idx) => {
               const Icon = step.icon;
               const isActive = currentStep === step.id;
@@ -388,7 +396,7 @@ export const SetupPage: React.FC = () => {
                   {idx > 0 && (
                     <div 
                       className={`absolute top-5 -left-1/2 w-full h-0.5 -z-0 transition-colors ${
-                        isDone ? 'bg-emerald-500' : 'bg-zinc-800'
+                        isDone ? 'bg-blue-600' : 'bg-gray-200'
                       }`}
                     />
                   )}
@@ -396,15 +404,15 @@ export const SetupPage: React.FC = () => {
                     onClick={() => setCurrentStep(step.id)}
                     className={`relative z-10 w-10 h-10 rounded-xl flex items-center justify-center font-medium transition-all ${
                       isActive 
-                        ? 'bg-emerald-500 text-zinc-950 shadow-lg shadow-emerald-500/20 ring-4 ring-emerald-500/20 font-bold' 
+                        ? 'bg-blue-600 text-white shadow-md shadow-blue-500/30 ring-4 ring-blue-100 font-bold' 
                         : isDone 
-                        ? 'bg-emerald-900/60 border border-emerald-500/50 text-emerald-300' 
-                        : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                        ? 'bg-blue-50 border border-blue-200 text-blue-600' 
+                        : 'bg-white border border-gray-200 text-gray-400 hover:border-gray-300'
                     }`}
                   >
                     {isDone ? <CheckCircle2 className="w-5 h-5" /> : <Icon className="w-5 h-5" />}
                   </button>
-                  <span className={`text-xs mt-2 font-medium ${isActive ? 'text-white' : 'text-zinc-400'}`}>
+                  <span className={`text-xs mt-2 font-medium ${isActive ? 'text-blue-600 font-semibold' : 'text-gray-500'}`}>
                     {step.name}
                   </span>
                 </div>
@@ -413,20 +421,20 @@ export const SetupPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Wizard Content Card */}
-        <div className="bg-zinc-900/80 border border-zinc-800/80 rounded-2xl p-6 sm:p-8 shadow-xl backdrop-blur-sm">
+        {/* Wizard Card Container */}
+        <div className="bg-white shadow-xl sm:rounded-2xl border border-gray-100 p-6 sm:p-10">
           
           {/* STEP 1: DATABASE */}
           {currentStep === 1 && (
             <div className="space-y-6">
-              <div className="flex items-start justify-between border-b border-zinc-800 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-4 gap-2">
                 <div>
-                  <h2 className="text-xl font-bold flex items-center">
-                    <Database className="w-5 h-5 text-emerald-400 mr-2" />
+                  <h2 className="text-xl font-extrabold text-gray-900 flex items-center">
+                    <Database className="w-5 h-5 text-blue-600 mr-2" />
                     PostgreSQL Database Configuration
                   </h2>
-                  <p className="text-sm text-zinc-400 mt-1">
-                    Set up your database connection. These settings will be saved to <span className="font-mono text-emerald-400">appsettings.config.json</span>.
+                  <p className="text-sm text-gray-500 mt-1">
+                    Set up your database connection. Saved externally to <span className="font-mono text-blue-600 font-semibold">appsettings.config.json</span>.
                   </p>
                 </div>
                 <div>
@@ -439,7 +447,7 @@ export const SetupPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setUseRawDbConn(!useRawDbConn)}
-                  className="text-xs text-emerald-400 hover:text-emerald-300 underline font-medium"
+                  className="text-xs text-blue-600 hover:text-blue-500 font-medium"
                 >
                   {useRawDbConn ? 'Switch to Form Fields' : 'Switch to Raw Connection String'}
                 </button>
@@ -447,7 +455,7 @@ export const SetupPage: React.FC = () => {
 
               {useRawDbConn ? (
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-2">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                     Raw PostgreSQL Connection String
                   </label>
                   <textarea
@@ -455,13 +463,13 @@ export const SetupPage: React.FC = () => {
                     value={dbConfig.rawConnectionString || ''}
                     onChange={(e) => setDbConfig({ ...dbConfig, rawConnectionString: e.target.value })}
                     placeholder="Host=localhost;Database=resala_chat;Username=postgres;Password=admin"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm font-mono text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-sm"
                   />
                 </div>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                       Host / Server IP
                     </label>
                     <input
@@ -469,12 +477,12 @@ export const SetupPage: React.FC = () => {
                       value={dbConfig.host || ''}
                       onChange={(e) => setDbConfig({ ...dbConfig, host: e.target.value })}
                       placeholder="localhost"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                      className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                       Port
                     </label>
                     <input
@@ -482,12 +490,12 @@ export const SetupPage: React.FC = () => {
                       value={dbConfig.port || 5432}
                       onChange={(e) => setDbConfig({ ...dbConfig, port: parseInt(e.target.value) || 5432 })}
                       placeholder="5432"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                      className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                       Database Name
                     </label>
                     <input
@@ -495,12 +503,12 @@ export const SetupPage: React.FC = () => {
                       value={dbConfig.database || ''}
                       onChange={(e) => setDbConfig({ ...dbConfig, database: e.target.value })}
                       placeholder="resala_chat"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                      className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                       Username
                     </label>
                     <input
@@ -508,12 +516,12 @@ export const SetupPage: React.FC = () => {
                       value={dbConfig.username || ''}
                       onChange={(e) => setDbConfig({ ...dbConfig, username: e.target.value })}
                       placeholder="postgres"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                      className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                     />
                   </div>
 
                   <div className="relative">
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                       Password
                     </label>
                     <div className="relative">
@@ -522,12 +530,12 @@ export const SetupPage: React.FC = () => {
                         value={dbConfig.password || ''}
                         onChange={(e) => setDbConfig({ ...dbConfig, password: e.target.value })}
                         placeholder="••••••••"
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                        className="appearance-none block w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                       />
                       <button
                         type="button"
                         onClick={() => setShowDbPassword(!showDbPassword)}
-                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-white"
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                       >
                         {showDbPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
@@ -535,13 +543,13 @@ export const SetupPage: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                       SSL Mode
                     </label>
                     <select
                       value={dbConfig.sslMode || 'Prefer'}
                       onChange={(e) => setDbConfig({ ...dbConfig, sslMode: e.target.value })}
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                      className="block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                     >
                       <option value="Prefer">Prefer</option>
                       <option value="Require">Require</option>
@@ -557,16 +565,16 @@ export const SetupPage: React.FC = () => {
                   type="button"
                   onClick={handleTestDatabase}
                   disabled={testingDb}
-                  className="flex items-center space-x-2 rtl:space-x-reverse px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-xl border border-zinc-700 transition disabled:opacity-50 text-sm"
+                  className="flex items-center space-x-2 rtl:space-x-reverse px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-xl border border-gray-300 shadow-sm transition disabled:opacity-50 text-sm"
                 >
                   {testingDb ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                       <span>Testing Connection...</span>
                     </>
                   ) : (
                     <>
-                      <RefreshCw className="w-4 h-4 text-emerald-400" />
+                      <RefreshCw className="w-4 h-4 text-blue-600" />
                       <span>Test Database Connection</span>
                     </>
                   )}
@@ -576,11 +584,15 @@ export const SetupPage: React.FC = () => {
                   <div 
                     className={`flex items-center space-x-2 rtl:space-x-reverse text-xs px-3.5 py-2 rounded-xl border ${
                       dbTestResult.success 
-                        ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40' 
-                        : 'bg-red-950/70 text-red-300 border-red-500/40'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                        : 'bg-red-50 text-red-700 border-red-200'
                     }`}
                   >
-                    {dbTestResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
+                    {dbTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                    )}
                     <span>{dbTestResult.message}</span>
                   </div>
                 )}
@@ -591,14 +603,14 @@ export const SetupPage: React.FC = () => {
           {/* STEP 2: STORAGE */}
           {currentStep === 2 && (
             <div className="space-y-6">
-              <div className="flex items-start justify-between border-b border-zinc-800 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-4 gap-2">
                 <div>
-                  <h2 className="text-xl font-bold flex items-center">
-                    <HardDrive className="w-5 h-5 text-emerald-400 mr-2" />
+                  <h2 className="text-xl font-extrabold text-gray-900 flex items-center">
+                    <HardDrive className="w-5 h-5 text-blue-600 mr-2" />
                     File & Media Storage Configuration
                   </h2>
-                  <p className="text-sm text-zinc-400 mt-1">
-                    Select where user chat uploads, media attachments, and avatars will be stored.
+                  <p className="text-sm text-gray-500 mt-1">
+                    Select where chat uploads, attachments, and user avatars will be stored.
                   </p>
                 </div>
                 <div>
@@ -606,23 +618,23 @@ export const SetupPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Provider Selection */}
+              {/* Provider Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   type="button"
                   onClick={() => setStorageConfig({ ...storageConfig, provider: 'LocalStorage' })}
                   className={`p-5 rounded-2xl border text-left transition-all flex items-start space-x-4 rtl:space-x-reverse ${
                     storageConfig.provider === 'LocalStorage'
-                      ? 'bg-emerald-950/30 border-emerald-500 ring-2 ring-emerald-500/20'
-                      : 'bg-zinc-950/60 border-zinc-800 hover:border-zinc-700'
+                      ? 'bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
+                      : 'bg-white border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <div className={`p-3 rounded-xl ${storageConfig.provider === 'LocalStorage' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-300'}`}>
+                  <div className={`p-3 rounded-xl ${storageConfig.provider === 'LocalStorage' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
                     <FolderOpen className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-base">Local Disk Storage</h3>
-                    <p className="text-xs text-zinc-400 mt-1">Store uploaded files locally on disk or on an attached NAS volume.</p>
+                    <h3 className="font-bold text-gray-900 text-base">Local Disk Storage</h3>
+                    <p className="text-xs text-gray-500 mt-1">Store uploaded files locally on disk or on an attached volume.</p>
                   </div>
                 </button>
 
@@ -631,16 +643,16 @@ export const SetupPage: React.FC = () => {
                   onClick={() => setStorageConfig({ ...storageConfig, provider: 'AzureBlob' })}
                   className={`p-5 rounded-2xl border text-left transition-all flex items-start space-x-4 rtl:space-x-reverse ${
                     storageConfig.provider === 'AzureBlob'
-                      ? 'bg-emerald-950/30 border-emerald-500 ring-2 ring-emerald-500/20'
-                      : 'bg-zinc-950/60 border-zinc-800 hover:border-zinc-700'
+                      ? 'bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
+                      : 'bg-white border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <div className={`p-3 rounded-xl ${storageConfig.provider === 'AzureBlob' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-300'}`}>
+                  <div className={`p-3 rounded-xl ${storageConfig.provider === 'AzureBlob' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
                     <Cloud className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-base">Azure Blob Storage</h3>
-                    <p className="text-xs text-zinc-400 mt-1">Enterprise cloud storage with SAS secure signed token delivery.</p>
+                    <h3 className="font-bold text-gray-900 text-base">Azure Blob Storage</h3>
+                    <p className="text-xs text-gray-500 mt-1">Enterprise cloud storage with secure signed SAS tokens.</p>
                   </div>
                 </button>
               </div>
@@ -648,7 +660,7 @@ export const SetupPage: React.FC = () => {
               {/* Local Storage Fields */}
               {storageConfig.provider === 'LocalStorage' ? (
                 <div>
-                  <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                  <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                     Storage Directory Path
                   </label>
                   <input
@@ -656,9 +668,9 @@ export const SetupPage: React.FC = () => {
                     value={storageConfig.path || ''}
                     onChange={(e) => setStorageConfig({ ...storageConfig, path: e.target.value })}
                     placeholder="Leave empty for default './storage' directory"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition font-mono"
+                    className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 font-mono transition-all bg-white"
                   />
-                  <p className="text-xs text-zinc-400 mt-1">
+                  <p className="text-xs text-gray-500 mt-1">
                     Relative paths are resolved relative to the application content root.
                   </p>
                 </div>
@@ -666,7 +678,7 @@ export const SetupPage: React.FC = () => {
                 /* Azure Fields */
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                    <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                       Azure Storage Connection String
                     </label>
                     <input
@@ -674,13 +686,13 @@ export const SetupPage: React.FC = () => {
                       value={storageConfig.azureConnectionString || ''}
                       onChange={(e) => setStorageConfig({ ...storageConfig, azureConnectionString: e.target.value })}
                       placeholder="DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...;"
-                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition font-mono"
+                      className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 font-mono transition-all bg-white"
                     />
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                         Container Name
                       </label>
                       <input
@@ -688,11 +700,11 @@ export const SetupPage: React.FC = () => {
                         value={storageConfig.azureContainerName || 'files'}
                         onChange={(e) => setStorageConfig({ ...storageConfig, azureContainerName: e.target.value })}
                         placeholder="files"
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                        className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                         SAS Expiry (Days)
                       </label>
                       <input
@@ -700,7 +712,7 @@ export const SetupPage: React.FC = () => {
                         value={storageConfig.sasExpiryDays || 365}
                         onChange={(e) => setStorageConfig({ ...storageConfig, sasExpiryDays: parseInt(e.target.value) || 365 })}
                         placeholder="365"
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                        className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                       />
                     </div>
                   </div>
@@ -713,16 +725,16 @@ export const SetupPage: React.FC = () => {
                   type="button"
                   onClick={handleTestStorage}
                   disabled={testingStorage}
-                  className="flex items-center space-x-2 rtl:space-x-reverse px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-xl border border-zinc-700 transition disabled:opacity-50 text-sm"
+                  className="flex items-center space-x-2 rtl:space-x-reverse px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-xl border border-gray-300 shadow-sm transition disabled:opacity-50 text-sm"
                 >
                   {testingStorage ? (
                     <>
-                      <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                      <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                       <span>Validating Storage...</span>
                     </>
                   ) : (
                     <>
-                      <RefreshCw className="w-4 h-4 text-emerald-400" />
+                      <RefreshCw className="w-4 h-4 text-blue-600" />
                       <span>Validate Storage Permissions</span>
                     </>
                   )}
@@ -732,11 +744,15 @@ export const SetupPage: React.FC = () => {
                   <div 
                     className={`flex items-center space-x-2 rtl:space-x-reverse text-xs px-3.5 py-2 rounded-xl border ${
                       storageTestResult.success 
-                        ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40' 
-                        : 'bg-red-950/70 text-red-300 border-red-500/40'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                        : 'bg-red-50 text-red-700 border-red-200'
                     }`}
                   >
-                    {storageTestResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
+                    {storageTestResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                    ) : (
+                      <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                    )}
                     <span>{storageTestResult.message}</span>
                   </div>
                 )}
@@ -747,14 +763,14 @@ export const SetupPage: React.FC = () => {
           {/* STEP 3: AUTHENTICATION & MODE */}
           {currentStep === 3 && (
             <div className="space-y-6">
-              <div className="flex items-start justify-between border-b border-zinc-800 pb-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-100 pb-4 gap-2">
                 <div>
-                  <h2 className="text-xl font-bold flex items-center">
-                    <ShieldCheck className="w-5 h-5 text-emerald-400 mr-2" />
-                    Authentication Mode & Setup
+                  <h2 className="text-xl font-extrabold text-gray-900 flex items-center">
+                    <ShieldCheck className="w-5 h-5 text-blue-600 mr-2" />
+                    Authentication Mode & Accounts
                   </h2>
-                  <p className="text-sm text-zinc-400 mt-1">
-                    Choose between local standalone user accounts or Active Directory / LDAP synchronization.
+                  <p className="text-sm text-gray-500 mt-1">
+                    Choose between local standalone user accounts or Active Directory / LDAP.
                   </p>
                 </div>
                 <div>
@@ -769,16 +785,16 @@ export const SetupPage: React.FC = () => {
                   onClick={() => setAuthMode('Standalone')}
                   className={`p-5 rounded-2xl border text-left transition-all flex items-start space-x-4 rtl:space-x-reverse ${
                     authMode === 'Standalone'
-                      ? 'bg-emerald-950/30 border-emerald-500 ring-2 ring-emerald-500/20'
-                      : 'bg-zinc-950/60 border-zinc-800 hover:border-zinc-700'
+                      ? 'bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
+                      : 'bg-white border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <div className={`p-3 rounded-xl ${authMode === 'Standalone' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-300'}`}>
+                  <div className={`p-3 rounded-xl ${authMode === 'Standalone' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
                     <Server className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-base">Standalone Mode</h3>
-                    <p className="text-xs text-zinc-400 mt-1">Self-managed database with local users, email/password, and initial administrator.</p>
+                    <h3 className="font-bold text-gray-900 text-base">Standalone Mode</h3>
+                    <p className="text-xs text-gray-500 mt-1">Self-managed database with local users, email/password, and an initial administrator.</p>
                   </div>
                 </button>
 
@@ -787,30 +803,30 @@ export const SetupPage: React.FC = () => {
                   onClick={() => setAuthMode('LDAP')}
                   className={`p-5 rounded-2xl border text-left transition-all flex items-start space-x-4 rtl:space-x-reverse ${
                     authMode === 'LDAP'
-                      ? 'bg-emerald-950/30 border-emerald-500 ring-2 ring-emerald-500/20'
-                      : 'bg-zinc-950/60 border-zinc-800 hover:border-zinc-700'
+                      ? 'bg-blue-50/70 border-blue-500 ring-2 ring-blue-500/20 shadow-sm'
+                      : 'bg-white border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <div className={`p-3 rounded-xl ${authMode === 'LDAP' ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-300'}`}>
+                  <div className={`p-3 rounded-xl ${authMode === 'LDAP' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-500'}`}>
                     <Lock className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-base">Active Directory / LDAP</h3>
-                    <p className="text-xs text-zinc-400 mt-1">Corporate directory authentication with automatic user provisioning.</p>
+                    <h3 className="font-bold text-gray-900 text-base">Active Directory / LDAP</h3>
+                    <p className="text-xs text-gray-500 mt-1">Corporate directory authentication with automatic user provisioning.</p>
                   </div>
                 </button>
               </div>
 
               {/* Standalone Admin Setup */}
               {authMode === 'Standalone' ? (
-                <div className="bg-zinc-950/50 border border-zinc-800/80 rounded-xl p-5 space-y-4">
-                  <h3 className="text-sm font-semibold text-emerald-400 uppercase tracking-wider flex items-center">
+                <div className="bg-gray-50 border border-gray-200 rounded-2xl p-6 space-y-4">
+                  <h3 className="text-xs font-bold text-blue-700 uppercase tracking-wider flex items-center">
                     <ShieldCheck className="w-4 h-4 mr-1.5" />
                     Initial Super Admin Account
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                         Display Name
                       </label>
                       <input
@@ -818,12 +834,12 @@ export const SetupPage: React.FC = () => {
                         value={adminUser.displayName}
                         onChange={(e) => setAdminUser({ ...adminUser, displayName: e.target.value })}
                         placeholder="Administrator"
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                        className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                         Admin Email
                       </label>
                       <input
@@ -831,12 +847,12 @@ export const SetupPage: React.FC = () => {
                         value={adminUser.email}
                         onChange={(e) => setAdminUser({ ...adminUser, email: e.target.value })}
                         placeholder="admin@example.com"
-                        className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                        className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                       />
                     </div>
 
                     <div className="relative">
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                         Admin Password
                       </label>
                       <div className="relative">
@@ -845,12 +861,12 @@ export const SetupPage: React.FC = () => {
                           value={adminUser.password}
                           onChange={(e) => setAdminUser({ ...adminUser, password: e.target.value })}
                           placeholder="••••••••"
-                          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2.5 pr-10 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                          className="appearance-none block w-full px-4 py-2.5 pr-10 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                         />
                         <button
                           type="button"
                           onClick={() => setShowAdminPassword(!showAdminPassword)}
-                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-zinc-400 hover:text-white"
+                          className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                         >
                           {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
@@ -863,7 +879,7 @@ export const SetupPage: React.FC = () => {
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                         Domain / Server Host
                       </label>
                       <input
@@ -871,12 +887,12 @@ export const SetupPage: React.FC = () => {
                         value={ldapConfig.domainName}
                         onChange={(e) => setLdapConfig({ ...ldapConfig, domainName: e.target.value })}
                         placeholder="ldap.corp.com or 192.168.1.10"
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition font-mono"
+                        className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 font-mono transition-all bg-white"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                         UPN Base / Realm
                       </label>
                       <input
@@ -884,12 +900,12 @@ export const SetupPage: React.FC = () => {
                         value={ldapConfig.upnBase || ''}
                         onChange={(e) => setLdapConfig({ ...ldapConfig, upnBase: e.target.value })}
                         placeholder="corp.domain.com"
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                        className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                       />
                     </div>
 
                     <div>
-                      <label className="block text-xs font-semibold uppercase tracking-wider text-zinc-400 mb-1.5">
+                      <label className="block text-xs font-semibold uppercase tracking-wider text-gray-600 mb-1.5">
                         Port
                       </label>
                       <input
@@ -897,7 +913,7 @@ export const SetupPage: React.FC = () => {
                         value={ldapConfig.port}
                         onChange={(e) => setLdapConfig({ ...ldapConfig, port: parseInt(e.target.value) || 389 })}
                         placeholder="389"
-                        className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-2.5 text-sm text-zinc-200 focus:outline-none focus:border-emerald-500 transition"
+                        className="appearance-none block w-full px-4 py-2.5 border border-gray-200 rounded-xl shadow-sm placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent sm:text-sm text-gray-900 transition-all bg-white"
                       />
                     </div>
                   </div>
@@ -908,9 +924,9 @@ export const SetupPage: React.FC = () => {
                         type="checkbox"
                         checked={ldapConfig.useSsl}
                         onChange={(e) => setLdapConfig({ ...ldapConfig, useSsl: e.target.checked, port: e.target.checked ? 636 : 389 })}
-                        className="rounded border-zinc-800 text-emerald-500 focus:ring-emerald-500 bg-zinc-950 w-4 h-4"
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                       />
-                      <span className="ml-2 rtl:mr-2 text-sm text-zinc-300">Use SSL / LDAPS (Port 636)</span>
+                      <span className="ml-2 rtl:mr-2 text-sm text-gray-700">Use SSL / LDAPS (Port 636)</span>
                     </label>
 
                     <label className="flex items-center cursor-pointer">
@@ -918,9 +934,9 @@ export const SetupPage: React.FC = () => {
                         type="checkbox"
                         checked={ldapConfig.skipCertValidation}
                         onChange={(e) => setLdapConfig({ ...ldapConfig, skipCertValidation: e.target.checked })}
-                        className="rounded border-zinc-800 text-emerald-500 focus:ring-emerald-500 bg-zinc-950 w-4 h-4"
+                        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                       />
-                      <span className="ml-2 rtl:mr-2 text-sm text-zinc-300">Allow Self-Signed / Skip Cert Check</span>
+                      <span className="ml-2 rtl:mr-2 text-sm text-gray-700">Allow Self-Signed / Skip Cert Check</span>
                     </label>
                   </div>
 
@@ -930,16 +946,16 @@ export const SetupPage: React.FC = () => {
                       type="button"
                       onClick={handleTestLdap}
                       disabled={testingLdap || !ldapConfig.domainName}
-                      className="flex items-center space-x-2 rtl:space-x-reverse px-5 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-white font-medium rounded-xl border border-zinc-700 transition disabled:opacity-50 text-sm"
+                      className="flex items-center space-x-2 rtl:space-x-reverse px-5 py-2.5 bg-white hover:bg-gray-50 text-gray-700 font-medium rounded-xl border border-gray-300 shadow-sm transition disabled:opacity-50 text-sm"
                     >
                       {testingLdap ? (
                         <>
-                          <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+                          <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                           <span>Testing LDAP...</span>
                         </>
                       ) : (
                         <>
-                          <RefreshCw className="w-4 h-4 text-emerald-400" />
+                          <RefreshCw className="w-4 h-4 text-blue-600" />
                           <span>Test LDAP Reachability</span>
                         </>
                       )}
@@ -949,11 +965,15 @@ export const SetupPage: React.FC = () => {
                       <div 
                         className={`flex items-center space-x-2 rtl:space-x-reverse text-xs px-3.5 py-2 rounded-xl border ${
                           ldapTestResult.success 
-                            ? 'bg-emerald-950/70 text-emerald-300 border-emerald-500/40' 
-                            : 'bg-red-950/70 text-red-300 border-red-500/40'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                            : 'bg-red-50 text-red-700 border-red-200'
                         }`}
                       >
-                        {ldapTestResult.success ? <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" /> : <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />}
+                        {ldapTestResult.success ? (
+                          <CheckCircle2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                        )}
                         <span>{ldapTestResult.message}</span>
                       </div>
                     )}
@@ -966,58 +986,58 @@ export const SetupPage: React.FC = () => {
           {/* STEP 4: SMART INSPECTOR & REVIEW */}
           {currentStep === 4 && (
             <div className="space-y-6">
-              <div className="border-b border-zinc-800 pb-4">
-                <h2 className="text-xl font-bold flex items-center">
-                  <Sparkles className="w-5 h-5 text-emerald-400 mr-2" />
+              <div className="border-b border-gray-100 pb-4">
+                <h2 className="text-xl font-extrabold text-gray-900 flex items-center">
+                  <Sparkles className="w-5 h-5 text-blue-600 mr-2" />
                   Configuration Review & Smart Detection
                 </h2>
-                <p className="text-sm text-zinc-400 mt-1">
-                  Verify your choices and inspect where settings are resolved in the ASP.NET Core provider chain.
+                <p className="text-sm text-gray-500 mt-1">
+                  Verify your choices and inspect where settings are resolved across ASP.NET Core configuration providers.
                 </p>
               </div>
 
               {/* Target File Notification */}
-              <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-2xl p-5 flex items-start space-x-3.5 rtl:space-x-reverse">
-                <FileCode className="w-6 h-6 text-emerald-400 flex-shrink-0 mt-0.5" />
+              <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-5 flex items-start space-x-3.5 rtl:space-x-reverse">
+                <FileCode className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  <h4 className="font-semibold text-emerald-300">External Configuration Destination</h4>
-                  <p className="text-zinc-300 text-xs mt-1 leading-relaxed">
+                  <h4 className="font-bold text-blue-900">External Configuration Destination</h4>
+                  <p className="text-blue-800/80 text-xs mt-1 leading-relaxed">
                     Configurations will be written directly to{' '}
-                    <code className="bg-zinc-900 text-emerald-400 px-1.5 py-0.5 rounded font-mono">
+                    <code className="bg-white border border-blue-200 text-blue-700 px-1.5 py-0.5 rounded font-mono font-semibold">
                       appsettings.config.json
                     </code>
-                    . This file is explicitly listed in <code className="bg-zinc-900 text-zinc-300 px-1.5 py-0.5 rounded font-mono">.gitignore</code>, ensuring database credentials, storage paths, and secrets are never committed into Git.
+                    . This file is excluded in <code className="bg-white border border-blue-200 text-gray-700 px-1.5 py-0.5 rounded font-mono">.gitignore</code>, ensuring database credentials and storage paths are never committed into Git.
                   </p>
                 </div>
               </div>
 
               {/* Configuration Hierarchy Badges */}
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-gray-600 mb-3">
                   Current Detected Configuration Sources:
                 </h3>
-                <div className="bg-zinc-950/70 border border-zinc-800 rounded-xl overflow-hidden">
-                  <div className="divide-y divide-zinc-800/60 text-xs font-mono">
+                <div className="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+                  <div className="divide-y divide-gray-100 text-xs">
                     <div className="p-3.5 flex items-center justify-between">
                       <div>
-                        <span className="text-zinc-300 font-semibold">ConnectionStrings:DefaultConnection</span>
-                        <p className="text-zinc-400 text-[11px] font-sans mt-0.5">Database connection string</p>
+                        <span className="text-gray-900 font-semibold font-mono">ConnectionStrings:DefaultConnection</span>
+                        <p className="text-gray-500 text-[11px] mt-0.5">Database connection string</p>
                       </div>
                       <div>{renderSourceBadge(setupStatus?.databaseSource)}</div>
                     </div>
 
                     <div className="p-3.5 flex items-center justify-between">
                       <div>
-                        <span className="text-zinc-300 font-semibold">Storage:Provider</span>
-                        <p className="text-zinc-400 text-[11px] font-sans mt-0.5">Active file store ({storageConfig.provider})</p>
+                        <span className="text-gray-900 font-semibold font-mono">Storage:Provider</span>
+                        <p className="text-gray-500 text-[11px] mt-0.5">Active file store ({storageConfig.provider})</p>
                       </div>
                       <div>{renderSourceBadge(setupStatus?.storageSource)}</div>
                     </div>
 
                     <div className="p-3.5 flex items-center justify-between">
                       <div>
-                        <span className="text-zinc-300 font-semibold">AuthMode</span>
-                        <p className="text-zinc-400 text-[11px] font-sans mt-0.5">Authentication provider mode</p>
+                        <span className="text-gray-900 font-semibold font-mono">AuthMode</span>
+                        <p className="text-gray-500 text-[11px] mt-0.5">Authentication provider mode</p>
                       </div>
                       <div>{renderSourceBadge(setupStatus?.authModeSource)}</div>
                     </div>
@@ -1025,14 +1045,14 @@ export const SetupPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Ready to Initialize */}
-              <div className="bg-zinc-950/40 border border-zinc-800/80 rounded-xl p-5 space-y-3">
-                <h3 className="text-sm font-semibold text-zinc-200">Summary of Changes to Apply</h3>
-                <ul className="text-xs text-zinc-400 space-y-1.5 list-disc list-inside">
-                  <li>Write <code className="text-emerald-300">appsettings.config.json</code> with new database & storage configuration.</li>
+              {/* Summary Checklist */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 space-y-3">
+                <h3 className="text-sm font-bold text-gray-900">Summary of Changes to Apply</h3>
+                <ul className="text-xs text-gray-600 space-y-1.5 list-disc list-inside">
+                  <li>Write <code className="text-blue-700 font-semibold">appsettings.config.json</code> with new database & storage configuration.</li>
                   <li>Execute pending Entity Framework Core migrations automatically.</li>
                   {authMode === 'Standalone' && (
-                    <li>Create or verify Super Admin user <code className="text-emerald-300">{adminUser.email}</code>.</li>
+                    <li>Create or verify Super Admin user <code className="text-blue-700 font-semibold">{adminUser.email}</code>.</li>
                   )}
                   <li>Lock setup mode to prevent unauthorized tampering.</li>
                 </ul>
@@ -1043,7 +1063,7 @@ export const SetupPage: React.FC = () => {
                   type="button"
                   onClick={handleSaveSetup}
                   disabled={isSaving}
-                  className="w-full py-3.5 px-6 bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-zinc-950 font-bold rounded-xl shadow-xl shadow-emerald-500/20 transition-all flex items-center justify-center space-x-2 rtl:space-x-reverse disabled:opacity-60"
+                  className="w-full flex justify-center items-center space-x-2 rtl:space-x-reverse py-3.5 px-6 border border-transparent rounded-xl shadow-md text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all disabled:opacity-60"
                 >
                   {isSaving ? (
                     <>
@@ -1062,12 +1082,12 @@ export const SetupPage: React.FC = () => {
           )}
 
           {/* Navigation Controls */}
-          <div className="border-t border-zinc-800 mt-8 pt-6 flex items-center justify-between">
+          <div className="border-t border-gray-100 mt-8 pt-6 flex items-center justify-between">
             {currentStep > 1 ? (
               <button
                 type="button"
                 onClick={() => setCurrentStep(currentStep - 1)}
-                className="flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-sm font-medium rounded-xl transition"
+                className="flex items-center space-x-2 rtl:space-x-reverse px-4 py-2 bg-white hover:bg-gray-50 text-gray-700 border border-gray-300 text-sm font-medium rounded-xl transition shadow-sm"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Back</span>
@@ -1078,7 +1098,7 @@ export const SetupPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setCurrentStep(currentStep + 1)}
-                className="flex items-center space-x-2 rtl:space-x-reverse px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-xl shadow-md shadow-emerald-600/20 transition"
+                className="flex items-center space-x-2 rtl:space-x-reverse px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl shadow-sm transition"
               >
                 <span>Continue</span>
                 <ArrowRight className="w-4 h-4" />
@@ -1087,6 +1107,11 @@ export const SetupPage: React.FC = () => {
           </div>
         </div>
       </main>
+
+      {/* Footer */}
+      <footer className="py-4 text-center text-xs text-gray-400">
+        Resala Messenger &copy; {new Date().getFullYear()} — Secure Communications Platform
+      </footer>
     </div>
   );
 };

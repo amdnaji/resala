@@ -96,9 +96,11 @@ namespace Resala.Backend.Services
 
         public async Task<TestResultDTO> TestDatabaseAsync(TestDatabaseRequest request)
         {
+            var targetDb = string.IsNullOrWhiteSpace(request.Database) ? "resala_chat" : request.Database;
+            string connStr = BuildConnectionString(request);
+
             try
             {
-                string connStr = BuildConnectionString(request);
                 await using var conn = new NpgsqlConnection(connStr);
                 await conn.OpenAsync();
 
@@ -109,9 +111,41 @@ namespace Resala.Backend.Services
                 return new TestResultDTO
                 {
                     Success = true,
-                    Message = "Successfully connected to PostgreSQL database.",
+                    Message = $"Successfully connected to database '{targetDb}'.",
                     Details = version
                 };
+            }
+            catch (PostgresException ex) when (ex.SqlState == "3D000") // Database does not exist
+            {
+                _logger.LogInformation("Database '{TargetDb}' does not exist. Testing PostgreSQL server reachability via 'postgres' default database...", targetDb);
+
+                try
+                {
+                    var adminConnStr = BuildAdminConnectionString(request, "postgres");
+                    await using var adminConn = new NpgsqlConnection(adminConnStr);
+                    await adminConn.OpenAsync();
+
+                    await using var cmd = adminConn.CreateCommand();
+                    cmd.CommandText = "SELECT version();";
+                    var version = (await cmd.ExecuteScalarAsync())?.ToString();
+
+                    return new TestResultDTO
+                    {
+                        Success = true,
+                        Message = $"PostgreSQL server credentials verified! Database '{targetDb}' does not exist yet and will be created automatically upon initialization.",
+                        Details = version
+                    };
+                }
+                catch (Exception adminEx)
+                {
+                    _logger.LogWarning(adminEx, "Server connection test failed against admin database");
+                    return new TestResultDTO
+                    {
+                        Success = false,
+                        Message = $"PostgreSQL server authentication or reachability failed: {adminEx.Message}",
+                        Details = adminEx.Message
+                    };
+                }
             }
             catch (Exception ex)
             {
@@ -371,7 +405,9 @@ namespace Resala.Backend.Services
                     root.Reload();
                 }
 
-                // 8. Run EF Core Migrations
+                // 8. Ensure database exists, then apply EF Core Migrations
+                await EnsureDatabaseCreatedAsync(request.Database);
+
                 _logger.LogInformation("Applying EF Core migrations on {ConnString}", connString);
                 var optionsBuilder = new DbContextOptionsBuilder<AppDbContext>();
                 optionsBuilder.UseNpgsql(connString).UseSnakeCaseNamingConvention();
@@ -415,7 +451,7 @@ namespace Resala.Backend.Services
                 return new TestResultDTO
                 {
                     Success = true,
-                    Message = "Setup successfully completed! Database migrated and configurations saved to appsettings.config.json."
+                    Message = "Setup successfully completed! Database created/migrated and configurations saved to appsettings.config.json."
                 };
             }
             catch (Exception ex)
@@ -428,6 +464,63 @@ namespace Resala.Backend.Services
                     Details = ex.ToString()
                 };
             }
+        }
+
+        private async Task EnsureDatabaseCreatedAsync(TestDatabaseRequest request)
+        {
+            var targetDb = string.IsNullOrWhiteSpace(request.Database) ? "resala_chat" : request.Database;
+
+            // Connect to server using default administrative database "postgres"
+            var adminConnStr = BuildAdminConnectionString(request, "postgres");
+            await using var conn = new NpgsqlConnection(adminConnStr);
+            await conn.OpenAsync();
+
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT 1 FROM pg_database WHERE datname = @dbName;";
+            cmd.Parameters.AddWithValue("dbName", targetDb);
+            var exists = await cmd.ExecuteScalarAsync();
+
+            if (exists == null)
+            {
+                _logger.LogInformation("Database '{TargetDb}' does not exist. Creating it...", targetDb);
+                var sanitizedDb = targetDb.Replace("\"", "\"\"");
+                await using var createCmd = conn.CreateCommand();
+                createCmd.CommandText = $"CREATE DATABASE \"{sanitizedDb}\";";
+                await createCmd.ExecuteNonQueryAsync();
+                _logger.LogInformation("Database '{TargetDb}' created successfully.", targetDb);
+            }
+        }
+
+        private static string BuildAdminConnectionString(TestDatabaseRequest request, string adminDb = "postgres")
+        {
+            if (!string.IsNullOrWhiteSpace(request.RawConnectionString))
+            {
+                var b = new NpgsqlConnectionStringBuilder(request.RawConnectionString)
+                {
+                    Database = adminDb,
+                    Timeout = 5,
+                    CommandTimeout = 10
+                };
+                return b.ConnectionString;
+            }
+
+            var builder = new NpgsqlConnectionStringBuilder
+            {
+                Host = string.IsNullOrWhiteSpace(request.Host) ? "localhost" : request.Host,
+                Port = request.Port <= 0 ? 5432 : request.Port,
+                Database = adminDb,
+                Username = string.IsNullOrWhiteSpace(request.Username) ? "postgres" : request.Username,
+                Password = request.Password ?? "",
+                Timeout = 5,
+                CommandTimeout = 10
+            };
+
+            if (!string.IsNullOrWhiteSpace(request.SslMode) && Enum.TryParse<SslMode>(request.SslMode, true, out var mode))
+            {
+                builder.SslMode = mode;
+            }
+
+            return builder.ConnectionString;
         }
 
         private static string BuildConnectionString(TestDatabaseRequest request)

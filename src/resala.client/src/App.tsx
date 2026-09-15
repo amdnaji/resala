@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { SignalRProvider } from './contexts/SignalRContext';
 import { CallProvider } from './contexts/CallContext';
@@ -18,21 +18,58 @@ import { SetupPage } from './pages/SetupPage';
 import { setupService } from './services/setupService';
 import { Toaster } from 'react-hot-toast';
 
+import { useState } from 'react';
+
 function SetupGuard({ children }: { children: React.ReactNode }) {
-  const navigate = useNavigate();
   const location = useLocation();
+  const [checking, setChecking] = useState<boolean>(() => {
+    if (location.pathname === '/setup') return false;
+    return sessionStorage.getItem('resala_setup_completed') !== 'true';
+  });
+  const [isSetupRequired, setIsSetupRequired] = useState<boolean>(false);
 
   useEffect(() => {
+    let isMounted = true;
+
+    if (sessionStorage.getItem('resala_setup_completed') === 'true' && location.pathname !== '/setup') {
+      setChecking(false);
+      return;
+    }
+
     setupService.getStatus()
       .then(res => {
-        if (!res.isSetupCompleted && location.pathname !== '/setup') {
-          navigate('/setup');
+        if (!isMounted) return;
+        if (!res.isSetupCompleted) {
+          setIsSetupRequired(true);
+          sessionStorage.removeItem('resala_setup_completed');
+        } else {
+          setIsSetupRequired(false);
+          sessionStorage.setItem('resala_setup_completed', 'true');
         }
       })
       .catch(() => {
-        // Allow normal flow if API is unreachable or offline
+        if (isMounted) setIsSetupRequired(false);
+      })
+      .finally(() => {
+        if (isMounted) setChecking(false);
       });
-  }, [location.pathname, navigate]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [location.pathname]);
+
+  if (checking && location.pathname !== '/setup') {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  if (isSetupRequired && location.pathname !== '/setup') {
+    return <Navigate to="/setup" replace />;
+  }
 
   return <>{children}</>;
 }
