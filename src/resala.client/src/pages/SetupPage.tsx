@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { 
   Database, 
   HardDrive, 
@@ -31,7 +30,6 @@ import {
 } from '../services/setupService';
 
 export const SetupPage: React.FC = () => {
-  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [statusLoading, setStatusLoading] = useState<boolean>(true);
   const [setupStatus, setSetupStatus] = useState<SetupStatusResponse | null>(null);
@@ -219,6 +217,7 @@ export const SetupPage: React.FC = () => {
 
       const res = await setupService.saveSetup(payload);
       if (res.success) {
+        sessionStorage.setItem('resala_setup_completed', 'true');
         setSetupCompletedSuccessfully(true);
         toast.success('Resala successfully configured and initialized!');
       } else {
@@ -307,11 +306,11 @@ export const SetupPage: React.FC = () => {
             </div>
             <h2 className="text-2xl font-extrabold text-gray-900 mb-2">Setup Complete!</h2>
             <p className="text-gray-600 text-sm mb-6 leading-relaxed">
-              Resala has been successfully configured. Your settings have been written to{' '}
+              Resala has been successfully configured. Your settings have been saved to{' '}
               <code className="bg-gray-100 text-blue-600 px-1.5 py-0.5 rounded text-xs font-mono font-semibold">
                 appsettings.config.json
               </code>{' '}
-              outside Git, and database migrations have finished running.
+              and database migrations have finished running.
             </p>
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6 text-left text-xs space-y-2">
               <div className="flex justify-between">
@@ -334,7 +333,10 @@ export const SetupPage: React.FC = () => {
               )}
             </div>
             <button
-              onClick={() => navigate('/login')}
+              onClick={() => {
+                sessionStorage.setItem('resala_setup_completed', 'true');
+                window.location.href = '/login';
+              }}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-xl shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
             >
               Go to Resala Login
@@ -1000,13 +1002,13 @@ export const SetupPage: React.FC = () => {
               <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-5 flex items-start space-x-3.5 rtl:space-x-reverse">
                 <FileCode className="w-6 h-6 text-blue-600 flex-shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  <h4 className="font-bold text-blue-900">External Configuration Destination</h4>
+                  <h4 className="font-bold text-blue-900">Custom Configuration Destination</h4>
                   <p className="text-blue-800/80 text-xs mt-1 leading-relaxed">
                     Configurations will be written directly to{' '}
                     <code className="bg-white border border-blue-200 text-blue-700 px-1.5 py-0.5 rounded font-mono font-semibold">
                       appsettings.config.json
                     </code>
-                    . This file is excluded in <code className="bg-white border border-blue-200 text-gray-700 px-1.5 py-0.5 rounded font-mono">.gitignore</code>, ensuring database credentials and storage paths are never committed into Git.
+                    , keeping your database credentials, storage paths, and environment settings securely isolated.
                   </p>
                 </div>
               </div>

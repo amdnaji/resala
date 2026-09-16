@@ -40,6 +40,38 @@ namespace Resala.Backend.Services
             var isCompleted = _configuration.GetValue<bool>("Setup:Completed");
             var connStr = _configuration.GetConnectionString("DefaultConnection");
 
+            // Direct check on appsettings.config.json if in-memory configuration has not picked it up yet
+            if (!isCompleted && _inspector.IsCustomConfigFilePresent())
+            {
+                try
+                {
+                    var filePath = _inspector.GetCustomConfigFilePath();
+                    if (File.Exists(filePath))
+                    {
+                        var jsonText = File.ReadAllText(filePath);
+                        using var doc = JsonDocument.Parse(jsonText);
+                        if (doc.RootElement.TryGetProperty("Setup", out var setupProp) &&
+                            setupProp.TryGetProperty("Completed", out var completedProp))
+                        {
+                            isCompleted = completedProp.GetBoolean();
+                        }
+                        if (doc.RootElement.TryGetProperty("ConnectionStrings", out var connProp) &&
+                            connProp.TryGetProperty("DefaultConnection", out var defConn))
+                        {
+                            var customConn = defConn.GetString();
+                            if (!string.IsNullOrWhiteSpace(customConn))
+                            {
+                                connStr = customConn;
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to read custom config directly in GetStatusAsync");
+                }
+            }
+
             bool canConnectDb = false;
             if (!string.IsNullOrWhiteSpace(connStr))
             {

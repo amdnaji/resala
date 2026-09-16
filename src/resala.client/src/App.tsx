@@ -26,29 +26,35 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
     if (location.pathname === '/setup') return false;
     return sessionStorage.getItem('resala_setup_completed') !== 'true';
   });
-  const [isSetupRequired, setIsSetupRequired] = useState<boolean>(false);
+  const [needsSetup, setNeedsSetup] = useState<boolean>(false);
 
   useEffect(() => {
     let isMounted = true;
 
-    if (sessionStorage.getItem('resala_setup_completed') === 'true' && location.pathname !== '/setup') {
+    if (sessionStorage.getItem('resala_setup_completed') === 'true') {
+      setNeedsSetup(false);
       setChecking(false);
       return;
+    }
+
+    if (location.pathname !== '/setup') {
+      setChecking(true);
     }
 
     setupService.getStatus()
       .then(res => {
         if (!isMounted) return;
-        if (!res.isSetupCompleted) {
-          setIsSetupRequired(true);
-          sessionStorage.removeItem('resala_setup_completed');
-        } else {
-          setIsSetupRequired(false);
+        if (res.isSetupCompleted) {
+          setIsSetupRequiredFalse();
           sessionStorage.setItem('resala_setup_completed', 'true');
+          setNeedsSetup(false);
+        } else {
+          sessionStorage.removeItem('resala_setup_completed');
+          setNeedsSetup(true);
         }
       })
       .catch(() => {
-        if (isMounted) setIsSetupRequired(false);
+        if (isMounted) setNeedsSetup(false);
       })
       .finally(() => {
         if (isMounted) setChecking(false);
@@ -59,6 +65,10 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
     };
   }, [location.pathname]);
 
+  const setIsSetupRequiredFalse = () => {
+    setNeedsSetup(false);
+  };
+
   if (checking && location.pathname !== '/setup') {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
@@ -67,7 +77,7 @@ function SetupGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (isSetupRequired && location.pathname !== '/setup') {
+  if (!checking && needsSetup && location.pathname !== '/setup') {
     return <Navigate to="/setup" replace />;
   }
 
